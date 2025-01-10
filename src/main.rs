@@ -22,9 +22,9 @@ fn main() {
     // println!("Time elapsed in expensive_function() is: {:?}", duration);
 
     // test();
-    sag();
+    // sag();
     
-    // sbox();
+    sbox();
 
 
 }
@@ -44,7 +44,7 @@ fn sbox(){
     let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
 
     let x0 = cks.encrypt(1);
-    let x1 = cks.encrypt(0);
+    let x1 = cks.encrypt(1);
     let x2 = cks.encrypt(0);
     let x3 = cks.encrypt(1);
     let x4 = cks.encrypt(1);
@@ -52,7 +52,7 @@ fn sbox(){
     let x6 = cks.encrypt(1);
     let x7 = cks.encrypt(0);
 
-    let f = |x: u64| (x/4)%2 & (x%4)%2;
+    let f = |x: u64| (((x/8)%2) & (x%2) )%2;
     let lut = sks.generate_lookup_table(&f);
 
     let g = |x: u64| x%2;
@@ -188,28 +188,72 @@ fn sbox(){
     let t44 = sks.unchecked_add(&t33, &t37);
     let t45 = sks.unchecked_add(&t42, &t41);
 
+    let shift = 8;
     
-    
-    let z0 = and(&t44, &y15, 4, &lut, &sks);
-    let z1 = and(&t37, &y6, 4, &lut, &sks);
-    let z2 = and(&t33, &x7, 4, &lut, &sks);
-    let z3 = and(&t43, &y16, 4, &lut, &sks);
-    let z4 = and(&t40, &y1, 4, &lut, &sks);
-    let z5 = and(&t29, &y7, 4, &lut, &sks);
-    let z6 = and(&t42, &y11, 4, &lut, &sks);
-    let z7 = and(&t45, &y17, 4, &lut, &sks);
-    let z8 = and(&t41, &y10, 4, &lut, &sks);
-    let z9 = and(&t44, &y12, 4, &lut, &sks);
-    let z10 = and(&t37, &y3, 4, &lut, &sks);
-    let z11 = and(&t33, &y4, 4, &lut, &sks);
-    let z12 = and(&t43, &y13, 4, &lut, &sks);
-    let z13 = and(&t40, &y5, 4, &lut, &sks);
-    let z14 = and(&t29, &y2, 4, &lut, &sks);
-    let z15 = and(&t42, &y9, 4, &lut, &sks);
-    let z16 = and(&t45, &y14, 4, &lut, &sks);
-    let z17 = and(&t41, &y8, 4, &lut, &sks);
+    let z0 = and(&t44, &y15, shift, &lut, &sks);
+    let z1 = and(&t37, &y6, shift, &lut, &sks);
+    let z2 = and(&t33, &x7, shift, &lut, &sks);
+    let z3 = and(&t43, &y16, shift, &lut, &sks);
+    let z4 = and(&t40, &y1, shift, &lut, &sks);
+    let z5 = and(&t29, &y7, shift, &lut, &sks);
+    let z6 = and(&t42, &y11, shift, &lut, &sks);
+    let z7 = and(&t45, &y17, shift, &lut, &sks);
+    let z8 = and(&t41, &y10, shift, &lut, &sks);
+    let z9 = and(&t44, &y12, shift, &lut, &sks);
+    let z10 = and(&t37, &y3, shift, &lut, &sks);
+    let z11 = and(&t33, &y4, shift, &lut, &sks);
+    let z12 = and(&t43, &y13, shift, &lut, &sks);
+    let z13 = and(&t40, &y5, shift, &lut, &sks);
+    let z14 = and(&t29, &y2, shift, &lut, &sks);
+    let z15 = and(&t42, &y9, shift, &lut, &sks);
+    let z16 = and(&t45, &y14, shift, &lut, &sks);
+    let z17 = and(&t41, &y8, shift, &lut, &sks);
 
 
+    // third linear layer
+    
+    let t46 = sks.unchecked_add(&z15, &z16);
+    let t47 = sks.unchecked_add(&z10, &z11);
+    let t48 = sks.unchecked_add(&z5, &z13);
+    let t49 = sks.unchecked_add(&z9, &z10);
+    let t50 = sks.unchecked_add(&z2, &z12);
+    let t51 = sks.unchecked_add(&z2, &z5);
+    let t52 = sks.unchecked_add(&z7, &z8);
+    let t53 = sks.unchecked_add(&z0, &z3);
+    let t54 = sks.unchecked_add(&z6, &z7);
+    let t55 = sks.unchecked_add(&z16, &z17);
+    let t56 = sks.unchecked_add(&z12, &t48);
+    let t57 = sks.unchecked_add(&t50, &t53);
+    let t58 = sks.unchecked_add(&z4, &t46);
+    let t59 = sks.unchecked_add(&z3, &t54);
+    let t60 = sks.unchecked_add(&t46, &t57);
+    let t61 = sks.unchecked_add(&z14, &t57);
+    let t62 = sks.unchecked_add(&t52, &t58);
+    let t63 = sks.unchecked_add(&t49, &t58);
+    let t64 = sks.unchecked_add(&z4, &t59);
+    let t65 = sks.unchecked_add(&t61, &t62);
+    let t66 = sks.unchecked_add(&z1, &t63);
+    let s0 = sks.unchecked_add(&t59, &t63);
+    let s6 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t56, &t62),1);
+    let s7 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t48, &t60),1);
+    let t67 = sks.unchecked_add(&t64, &t65);
+    let s3 = sks.unchecked_add(&t53, &t66);
+    let s4 = sks.unchecked_add(&t51, &t66);
+    let s5 = sks.unchecked_add(&t47, &t65);
+    let s1 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t64, &s3),1);
+    let s2 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t55, &t67),1);
+
+
+
+    println!("Decrypted S-Box Results:");
+    println!("s0: {}", cks.decrypt(&s0)%2);
+    println!("s1: {}", cks.decrypt(&s1)%2);
+    println!("s2: {}", cks.decrypt(&s2)%2);
+    println!("s3: {}", cks.decrypt(&s3)%2);
+    println!("s4: {}", cks.decrypt(&s4)%2);
+    println!("s5: {}", cks.decrypt(&s5)%2);
+    println!("s6: {}", cks.decrypt(&s6)%2);
+    println!("s7: {}", cks.decrypt(&s7)%2);
     
 
 
