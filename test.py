@@ -26,29 +26,27 @@ def linear_transformation(x):
     y21 = y13 ^ y16
     y18 = x[0] ^ y16
     
-    print(f"y14 = {y14}")
-    print(f"y13 = {y13}")
-    print(f"y9 = {y9}")
-    print(f"y8 = {y8}")
-    print(f"t0 = {t0}")
-    print(f"y1 = {y1}")
-    print(f"y4 = {y4}")
-    print(f"y12 = {y12}")
-    print(f"y2 = {y2}")
-    print(f"y5 = {y5}")
-    print(f"y3 = {y3}")
-    print(f"t1 = {t1}")
-    print(f"y15 = {y15}")
-    print(f"y20 = {y20}")
-    print(f"y6 = {y6}")
-    print(f"y10 = {y10}")
-    print(f"y11 = {y11}")
-    print(f"y7 = {y7}")
-    print(f"y17 = {y17}")
-    print(f"y19 = {y19}")
-    print(f"y16 = {y16}")
-    print(f"y21 = {y21}")
-    print(f"y18 = {y18}")
+    print("y1:", y1)
+    print("y2:", y2)
+    print("y3:", y3)
+    print("y4:", y4)
+    print("y5:", y5)
+    print("y6:", y6)
+    print("y7:", y7)
+    print("y8:", y8)
+    print("y9:", y9)
+    print("y10:", y10)
+    print("y11:", y11)
+    print("y12:", y12)
+    print("y13:", y13)
+    print("y14:", y14)
+    print("y15:", y15)
+    print("y16:", y16)
+    print("y17:", y17)
+    print("y18:", y18)
+    print("y19:", y19)
+    print("y20:", y20)
+    print("y21:", y21)
 
 
     # Middle non-linear section
@@ -96,6 +94,48 @@ def linear_transformation(x):
     t43 = t29 ^ t40
     t44 = t33 ^ t37
     t45 = t42 ^ t41
+    
+
+    print(f"t2 = {t2}")
+    print(f"t3 = {t3}")
+    print(f"t4 = {t4}")
+    print(f"t5 = {t5}")
+    print(f"t6 = {t6}")
+    print(f"t7 = {t7}")
+    print(f"t8 = {t8}")
+    print(f"t9 = {t9}")
+    print(f"t10 = {t10}")
+    print(f"t11 = {t11}")
+    print(f"t12 = {t12}")
+    print(f"t13 = {t13}")
+    print(f"t14 = {t14}")
+    print(f"t15 = {t15}")
+    print(f"t21 = {t21}")
+    print(f"t22 = {t22}")
+    print(f"t23 = {t23}")
+    print(f"t24 = {t24}")
+    print(f"t25 = {t25}")
+    print(f"t26 = {t26}")
+    print(f"t27 = {t27}")
+    print(f"t28 = {t28}")
+    print(f"t29 = {t29}")
+    print(f"t30 = {t30}")
+    print(f"t31 = {t31}")
+    print(f"t32 = {t32}")
+    print(f"t33 = {t33}")
+    print(f"t34 = {t34}")
+    print(f"t35 = {t35}")
+    print(f"t36 = {t36}")
+    print(f"t37 = {t37}")
+    print(f"t38 = {t38}")
+    print(f"t39 = {t39}")
+    print(f"t40 = {t40}")
+    print(f"t41 = {t41}")
+    print(f"t42 = {t42}")
+    print(f"t43 = {t43}")
+    print(f"t44 = {t44}")
+    print(f"t45 = {t45}")
+    
 
     z0 = t44 & y15
     z1 = t37 & y6
@@ -115,6 +155,27 @@ def linear_transformation(x):
     z15 = t42 & y9
     z16 = t45 & y14
     z17 = t41 & y8
+    
+    
+    print(f"z0 = {z0}")
+    print(f"z1 = {z1}")
+    print(f"z2 = {z2}")
+    print(f"z3 = {z3}")
+    print(f"z4 = {z4}")
+    print(f"z5 = {z5}")
+    print(f"z6 = {z6}")
+    print(f"z7 = {z7}")
+    print(f"z8 = {z8}")
+    print(f"z9 = {z9}")
+    print(f"z10 = {z10}")
+    print(f"z11 = {z11}")
+    print(f"z12 = {z12}")
+    print(f"z13 = {z13}")
+    print(f"z14 = {z14}")
+    print(f"z15 = {z15}")
+    print(f"z16 = {z16}")
+    print(f"z17 = {z17}")
+    
     # z = [
     #     t44 & y15, t37 & y6, t33 & x[7], t43 & y16,
     #     t40 & y1, t29 & y7, t42 & y11, t45 & y17,
@@ -158,6 +219,6 @@ def linear_transformation(x):
     return [s0, s1, s2, s3, s4, s5, s6, s7]
 
 # Example usage with 8-bit input
-x = [1,1,0,1,1,0,1,0]  # Replace with actual bit inputs
+x = [1,1,0,0,0,0,0,0]  # Replace with actual bit inputs
 result = linear_transformation(x)
 print("Result:", result)

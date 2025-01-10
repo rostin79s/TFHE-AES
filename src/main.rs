@@ -29,9 +29,15 @@ fn main() {
 
 }
 
-fn and(l: &Ciphertext, r: &Ciphertext, shift: u8, lut: &LookupTable<Vec<u64>>, sks: &ServerKey) -> Ciphertext {
+fn and(l: &Ciphertext, r: &Ciphertext, shift: u8, lut: &LookupTable<Vec<u64>>, sks: &ServerKey, cks: &ClientKey) -> Ciphertext {
+    let g = |x: u64| x%2;
+    let lut2 = sks.generate_lookup_table(&g);
+    let l = bootstrap(l, &lut2, &sks);
+
     let t = sks.unchecked_scalar_mul(&l, shift);
+    // println!("T1: {}", cks.decrypt(&t));
     let t = sks.unchecked_add(&t, &r);
+    // println!("T2: {}", cks.decrypt(&t));
     let t = sks.apply_lookup_table(&t, &lut);
     return t;
 }
@@ -46,10 +52,10 @@ fn sbox(){
     let x0 = cks.encrypt(1);
     let x1 = cks.encrypt(1);
     let x2 = cks.encrypt(0);
-    let x3 = cks.encrypt(1);
-    let x4 = cks.encrypt(1);
+    let x3 = cks.encrypt(0);
+    let x4 = cks.encrypt(0);
     let x5 = cks.encrypt(0);
-    let x6 = cks.encrypt(1);
+    let x6 = cks.encrypt(0);
     let x7 = cks.encrypt(0);
 
     let f = |x: u64| (((x/8)%2) & (x%2) )%2;
@@ -122,29 +128,53 @@ fn sbox(){
 
     
 
+    println!("Y Ciphertexts:");
+    println!("y1 {}", cks.decrypt(&y1));
+    println!("y2 {}", cks.decrypt(&y2));
+    println!("y3 {}", cks.decrypt(&y3));
+    println!("y4 {}", cks.decrypt(&y4));
+    println!("y5 {}", cks.decrypt(&y5));
+    println!("y6 {}", cks.decrypt(&y6));
+    println!("y7 {}", cks.decrypt(&y7));
+    println!("y8 {}", cks.decrypt(&y8));
+    println!("y9 {}", cks.decrypt(&y9));
+    println!("y10 {}", cks.decrypt(&y10));
+    println!("y11 {}", cks.decrypt(&y11));
+    println!("y12 {}", cks.decrypt(&y12));
+    println!("y13 {}", cks.decrypt(&y13));
+    println!("y14 {}", cks.decrypt(&y14));
+    println!("y15 {}", cks.decrypt(&y15));
+    println!("y16 {}", cks.decrypt(&y16));
+    println!("y17 {}", cks.decrypt(&y17));
+    println!("y18 {}", cks.decrypt(&y18));
+    println!("y19 {}", cks.decrypt(&y19));
+    println!("y20 {}", cks.decrypt(&y20));
+    println!("y21 {}", cks.decrypt(&y21));
+
+
     // middle non-linear layer
     
 
    
-    let t2 = and(&y12, &y15, 8, &lut, &sks); // 1
-    let t3 = and(&y3, &y6, 8, &lut, &sks); // 1
+    let t2 = and(&y12, &y15, 8, &lut, &sks, &cks); // 1
+    let t3 = and(&y3, &y6, 8, &lut, &sks, &cks); // 1
     let t4 = sks.unchecked_add(&t3, &t2); // 2
-    let t5 = and(&y4,&x7, 8, &lut, &sks); // 1
+    let t5 = and(&y4,&x7, 8, &lut, &sks, &cks); // 1
     let t6 = sks.unchecked_add(&t5, &t2); // 2
 
     
-    let t7 = and(&y13,&y16, 8, &lut, &sks); // 1
-    let t8 = and(&y5,&y1, 8, &lut, &sks); // 1
+    let t7 = and(&y13,&y16, 8, &lut, &sks, &cks); // 1
+    let t8 = and(&y5,&y1, 8, &lut, &sks, &cks); // 1
     let t9 = sks.unchecked_add(&t8, &t7); // 2
-    let t10 = and(&y2,&y7, 8, &lut, &sks); // 1
+    let t10 = and(&y2,&y7, 8, &lut, &sks, &cks); // 1
     let t11 = sks.unchecked_add(&t10, &t7); // 2
-    let t12 = and(&y9,&y11, 8, &lut, &sks); // 1
-    let t13 = and(&y14,&y17, 8, &lut, &sks); // 1
+    let t12 = and(&y9,&y11, 8, &lut, &sks, &cks); // 1
+    let t13 = and(&y14,&y17, 8, &lut, &sks, &cks); // 1
     let t14 = sks.unchecked_add(&t13, &t12); // 2
 
 
   
-    let t15 = and(&y8,&y10, 8, &lut, &sks); // 1
+    let t15 = and(&y8,&y10, 8, &lut, &sks, &cks); // 1
     let t16 = sks.unchecked_add(&t15, &t12); // 2
     let t17 = sks.unchecked_add(&t4, &t14); // 4
     let t18 = sks.unchecked_add(&t6, &t16); // 4
@@ -157,28 +187,28 @@ fn sbox(){
     let t25 = sks.unchecked_add(&t21, &t22); // 16+
 
     
-    let t26 = and(&t21,&t23, 8, &lut, &sks); // 1
+    let t26 = and(&t21,&t23, 8, &lut, &sks, &cks); // 1
 
     let t27 = sks.unchecked_add(&t24, &t26); // 6
 
-    let t28 = and(&t25, &t27, 8, &lut, &sks); // 1
+    let t28 = and(&t25, &t27, 8, &lut, &sks, &cks); // 1
 
     let t29 = sks.unchecked_add(&t28, &t22); // 7
     let t30 = sks.unchecked_add(&t23, &t24); // 11
     let t31 = sks.unchecked_add(&t22, &t26); // 7
 
-    let t32 = and(&t30, &t31, 8, &lut, &sks); // 1
+    let t32 = and(&t30, &t31, 8, &lut, &sks, &cks); // 1
     
-    let t33 = sks.unchecked_add(&t32, &t30); // 12
-    let t34 = sks.unchecked_add(&t23, &t33); // 18
-    let t35 = sks.unchecked_add(&t27, &t33); // 18
+    let t33 = sks.unchecked_add(&t32, &t24); // 6
+    let t34 = sks.unchecked_add(&t23, &t33); // 12
+    let t35 = sks.unchecked_add(&t27, &t33); // 12
 
-    let t36 = and(&t35, &t24, 8, &lut, &sks); // 1
+    let t36 = and(&t35, &t24, 8, &lut, &sks, &cks); // 1
 
     let t37 = sks.unchecked_add(&t36, &t34); // 19
     let t38 = sks.unchecked_add(&t27, &t36); // 7
 
-    let t39 = and(&t29, &t38, 8, &lut, &sks); // 1
+    let t39 = and(&t29, &t38, 8, &lut, &sks, &cks); // 1
 
 
     let t40 = sks.unchecked_add(&t25, &t39);
@@ -188,26 +218,56 @@ fn sbox(){
     let t44 = sks.unchecked_add(&t33, &t37);
     let t45 = sks.unchecked_add(&t42, &t41);
 
+    println!("T Ciphertexts:");
+    println!("t40 {}", cks.decrypt(&t40));
+    println!("t41 {}", cks.decrypt(&t41));
+    println!("t42 {}", cks.decrypt(&t42));
+    println!("t43 {}", cks.decrypt(&t43));
+    println!("t44 {}", cks.decrypt(&t44));
+    println!("t45 {}", cks.decrypt(&t45));
+
     let shift = 8;
     
-    let z0 = and(&t44, &y15, shift, &lut, &sks);
-    let z1 = and(&t37, &y6, shift, &lut, &sks);
-    let z2 = and(&t33, &x7, shift, &lut, &sks);
-    let z3 = and(&t43, &y16, shift, &lut, &sks);
-    let z4 = and(&t40, &y1, shift, &lut, &sks);
-    let z5 = and(&t29, &y7, shift, &lut, &sks);
-    let z6 = and(&t42, &y11, shift, &lut, &sks);
-    let z7 = and(&t45, &y17, shift, &lut, &sks);
-    let z8 = and(&t41, &y10, shift, &lut, &sks);
-    let z9 = and(&t44, &y12, shift, &lut, &sks);
-    let z10 = and(&t37, &y3, shift, &lut, &sks);
-    let z11 = and(&t33, &y4, shift, &lut, &sks);
-    let z12 = and(&t43, &y13, shift, &lut, &sks);
-    let z13 = and(&t40, &y5, shift, &lut, &sks);
-    let z14 = and(&t29, &y2, shift, &lut, &sks);
-    let z15 = and(&t42, &y9, shift, &lut, &sks);
-    let z16 = and(&t45, &y14, shift, &lut, &sks);
-    let z17 = and(&t41, &y8, shift, &lut, &sks);
+    let z0 = and(&t44, &y15, shift, &lut, &sks, &cks);
+    let z1 = and(&t37, &y6, shift, &lut, &sks, &cks);
+    let z2 = and(&t33, &x7, shift, &lut, &sks, &cks);
+    let z3 = and(&t43, &y16, shift, &lut, &sks, &cks);
+    let z4 = and(&t40, &y1, shift, &lut, &sks, &cks);
+    let z5 = and(&t29, &y7, shift, &lut, &sks, &cks);
+    let z6 = and(&t42, &y11, shift, &lut, &sks, &cks);
+    let z7 = and(&t45, &y17, shift, &lut, &sks, &cks);
+    let z8 = and(&t41, &y10, shift, &lut, &sks, &cks);
+    let z9 = and(&t44, &y12, shift, &lut, &sks, &cks);
+    let z10 = and(&t37, &y3, shift, &lut, &sks, &cks);
+    let z11 = and(&t33, &y4, shift, &lut, &sks, &cks);
+    let z12 = and(&t43, &y13, shift, &lut, &sks, &cks);
+    let z13 = and(&t40, &y5, shift, &lut, &sks, &cks);
+    let z14 = and(&t29, &y2, shift, &lut, &sks, &cks);
+    let z15 = and(&t42, &y9, shift, &lut, &sks, &cks);
+    let z16 = and(&t45, &y14, shift, &lut, &sks, &cks);
+    let z17 = and(&t41, &y8, shift, &lut, &sks, &cks);
+
+
+    println!("Z Ciphertexts:");
+    println!("z0: {}", cks.decrypt(&z0));
+    println!("z1: {}", cks.decrypt(&z1));
+    println!("z2: {}", cks.decrypt(&z2));
+    println!("z3: {}", cks.decrypt(&z3));
+    println!("z4: {}", cks.decrypt(&z4));
+    println!("z5: {}", cks.decrypt(&z5));
+    println!("z6: {}", cks.decrypt(&z6));
+    println!("z7: {}", cks.decrypt(&z7));
+    println!("z8: {}", cks.decrypt(&z8));
+    println!("z9: {}", cks.decrypt(&z9));
+    println!("z10: {}", cks.decrypt(&z10));
+    println!("z11: {}", cks.decrypt(&z11));
+    println!("z12: {}", cks.decrypt(&z12));
+    println!("z13: {}", cks.decrypt(&z13));
+    println!("z14: {}", cks.decrypt(&z14));
+    println!("z15: {}", cks.decrypt(&z15));
+    println!("z16: {}", cks.decrypt(&z16));
+    println!("z17: {}", cks.decrypt(&z17));
+
 
 
     // third linear layer
@@ -233,17 +293,35 @@ fn sbox(){
     let t64 = sks.unchecked_add(&z4, &t59);
     let t65 = sks.unchecked_add(&t61, &t62);
     let t66 = sks.unchecked_add(&z1, &t63);
+
+    println!("T Ciphertexts:");
+    println!("t46: {}", cks.decrypt(&t46));
+    println!("t47: {}", cks.decrypt(&t47));
+    println!("t48: {}", cks.decrypt(&t48));
+    println!("t49: {}", cks.decrypt(&t49));
+    println!("t50: {}", cks.decrypt(&t50));
+    println!("t51: {}", cks.decrypt(&t51));
+    println!("t59: {}", cks.decrypt(&t59));
+    println!("t63: {}", cks.decrypt(&t63));
     let s0 = sks.unchecked_add(&t59, &t63);
-    let s6 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t56, &t62),1);
-    let s7 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t48, &t60),1);
+    let s6 = sks.unchecked_scalar_add(&sks.unchecked_add(&t56, &t62),1);
+    let s7 = sks.unchecked_scalar_add(&sks.unchecked_add(&t48, &t60),1);
     let t67 = sks.unchecked_add(&t64, &t65);
     let s3 = sks.unchecked_add(&t53, &t66);
     let s4 = sks.unchecked_add(&t51, &t66);
     let s5 = sks.unchecked_add(&t47, &t65);
-    let s1 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t64, &s3),1);
-    let s2 = sks.unchecked_scalar_sub(&sks.unchecked_add(&t55, &t67),1);
+    let s1 = sks.unchecked_scalar_add(&sks.unchecked_add(&t64, &s3),1);
+    let s2 = sks.unchecked_scalar_add(&sks.unchecked_add(&t55, &t67),1);
 
-
+    let s0 = bootstrap(&s0, &lut2, &sks);
+    let s1 = bootstrap(&s1, &lut2, &sks);
+    let s2 = bootstrap(&s2, &lut2, &sks);
+    let s3 = bootstrap(&s3, &lut2, &sks);
+    let s4 = bootstrap(&s4, &lut2, &sks);
+    let s5 = bootstrap(&s5, &lut2, &sks);
+    let s6 = bootstrap(&s6, &lut2, &sks);
+    let s7 = bootstrap(&s7, &lut2, &sks);
+    
 
     println!("Decrypted S-Box Results:");
     println!("s0: {}", cks.decrypt(&s0)%2);
