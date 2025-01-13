@@ -4,38 +4,22 @@ use tfhe::shortint::backward_compatibility::client_key;
 use tfhe::shortint::parameters::p_fail_2_minus_64::ks_pbs::*;
 
 use tfhe::shortint::parameters::{PARAM_MESSAGE_2_CARRY_2_PBS_KS_TUNIFORM_2M64, PARAM_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64, PARAM_MESSAGE_8_CARRY_0_COMPACT_PK_KS_PBS};
-// use tfhe::shortint::parameters::{PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, PARAM_MESSAGE_4_CARRY_0_KS_PBS};
-// use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::circuit_bootstrap_boolean;
-// use tfhe::shortint::wopbs::*;
 use tfhe::shortint::prelude::*;
 use tfhe::shortint::server_key::{LookupTable, ManyLookupTable};
-// use tfhe::
-// use tfhe::core_crypto::prelude::test::TestResources;
-// use tfhe::prelude::*;
+
+use rand::Rng; // For generating random numbers.
+
+use aes::Aes128;
+use aes::cipher::{
+    BlockCipher, BlockEncrypt, BlockDecrypt, KeyInit,
+    generic_array::GenericArray,
+};
+
 mod table;
 
 
-fn main() {
-    // let start = std::time::Instant::now();
-    // circuit_boot_vertical_packing();
-    // let duration = start.elapsed();
-    // println!("Time elapsed in expensive_function() is: {:?}", duration);
-
-    // test();
-    // sag();
-
-    let test = [1, 1, 0, 1, 1, 1, 1, 1];
-    
-    loop {
-        let res = sbox();
-        if res != test {
-            assert_eq!(res, test);
-            break;
-        }
-    }
 
 
-}
 
 fn and(l: &Ciphertext, r: &Ciphertext, shift: u8, lut: &LookupTable<Vec<u64>>, sks: &ServerKey, cks: &ClientKey) -> Ciphertext {
     // let g = |x: u64| x%2;
@@ -54,13 +38,83 @@ fn bootstrap(ct: &Ciphertext, lut: &LookupTable<Vec<u64>>, sks: &ServerKey) -> C
     return sks.apply_lookup_table(&ct, &lut);
 }
 
+fn client(){
+   
+    let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
+    let mut rng = rand::thread_rng();
+    let message: u128 = rng.gen(); // Random 128-bit message
+    let key: u128 = rng.gen();     // Random 128-bit cryptographic key (NOT SECURE)
+
+    let message_bits: Vec<bool> = (0..128).map(|i| (message >> i) & 1 == 1).collect();
+    let key_bits: Vec<bool> = (0..128).map(|i| (key >> i) & 1 == 1).collect();
+
+    let message_cts: Vec<Ciphertext> = message_bits
+        .iter()
+        .map(|&b| cks.encrypt(b as u64))
+        .collect();
+
+    let key_cts: Vec<Ciphertext> = key_bits
+        .iter()
+        .map(|&b| cks.encrypt(b as u64))
+        .collect();
+
+    let res = AES_encrypt(&cks, &sks, &message_cts, &key_cts);
+    
+}
+
+fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, message_cts: &Vec<Ciphertext>, key_cts: &Vec<Ciphertext>) -> Vec<Ciphertext>{
+
+    let rounds = 10;
+    let state_size = 128; // AES works on 128-bit blocks
+    let bytes_per_state = state_size / 8;
+
+    add_round_key(sks, &message_cts, &key_cts, 0);
+
+    for round in 1..rounds {
+        // Apply S-Box substitution on each byte (8 ciphertexts)
+        for byte_start in (0..bytes_per_state).map(|i| i * 8) {
+            sbox(sks, &mut message_cts[byte_start..byte_start + 8]);
+        }
+
+        // Apply ShiftRows
+        shift_rows(sks, message_cts);
+
+        // Apply MixColumns
+        mix_columns(sks, message_cts);
+
+        // Add Round Key
+        add_round_key(sks, message_cts, key_cts, round);
+    }
+
+    // Final round (no MixColumns)
+    for byte_start in (0..bytes_per_state).map(|i| i * 8) {
+        sbox(sks, &mut message_cts[byte_start..byte_start + 8]);
+    }
+    shift_rows(sks, message_cts);
+    add_round_key(sks, message_cts, key_cts, rounds);
+
+}
+
+fn add_round_key(
+    sks: &ServerKey,
+    state: &mut Vec<Ciphertext>,
+    key_cts: &Vec<Ciphertext>,
+    round: usize,
+) {
+    
+    for (i, state_bit) in state.iter_mut().enumerate() {
+        let key_bit = &key_cts[(round * 128 + i) % key_cts.len()];
+        *state_bit = sks.unchecked_add(state_bit, key_bit);
+    }
+}
+
 fn sbox() -> [u64; 8] {
     let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
 
-    let x0 = cks.encrypt(1);
+    let x0 = cks.encrypt(0);
     let x1 = cks.encrypt(1);
     let x2 = cks.encrypt(1);
-    let x3 = cks.encrypt(0);
+    let x3 = cks.encrypt(1);
     let x4 = cks.encrypt(1);
     let x5 = cks.encrypt(1);
     let x6 = cks.encrypt(1);
@@ -188,55 +242,63 @@ fn sbox() -> [u64; 8] {
     let t18 = sks.unchecked_add(&t6, &t16); // 4
     let t19 = sks.unchecked_add(&t9, &t14); // 4
     let t20 = sks.unchecked_add(&t11, &t16); // 4
+
     let t21 = sks.unchecked_add(&t17, &y20); // 16+
+    let t21 = bootstrap(&t21, &lut2, &sks);
+
     let t22 = sks.unchecked_add(&t18, &y19); // 6 
+    let t22 = bootstrap(&t22, &lut2, &sks);
+
     let t23 = sks.unchecked_add(&t19, &y21); // 6 
+    let t23 = bootstrap(&t23, &lut2, &sks);
+
     let t24 = sks.unchecked_add(&t20, &y18); // 5
-    let t25 = sks.unchecked_add(&t21, &t22); // 16+
+    let t24 = bootstrap(&t24, &lut2, &sks);
+
+    let t25 = sks.unchecked_add(&t21, &t22); // 2
 
     
     let t26 = and(&t21,&t23, 8, &lut, &sks, &cks); // 1
 
-    let t27 = sks.unchecked_add(&t24, &t26); // 6
+    let t27 = sks.unchecked_add(&t24, &t26); // 2
 
     let t28 = and(&t25, &t27, 8, &lut, &sks, &cks); // 1
 
-    let t29 = sks.unchecked_add(&t28, &t22); // 7
-    let t30 = sks.unchecked_add(&t23, &t24); // 11
-    let t31 = sks.unchecked_add(&t22, &t26); // 7
+    let t29 = sks.unchecked_add(&t28, &t22); // 2
+    let t30 = sks.unchecked_add(&t23, &t24); // 2
+    let t31 = sks.unchecked_add(&t22, &t26); // 2
 
-    let t30 = bootstrap(&t30, &lut2, &sks);
     let t32 = and(&t30, &t31, 8, &lut, &sks, &cks); // 1
     
-    let t33 = sks.unchecked_add(&t32, &t24); // 6
-    let t34 = sks.unchecked_add(&t23, &t33); // 12
-    let t35 = sks.unchecked_add(&t27, &t33); // 12
+    let t33 = sks.unchecked_add(&t32, &t24); // 2
+    let t34 = sks.unchecked_add(&t23, &t33); // 3
+    let t35 = sks.unchecked_add(&t27, &t33); // 4
 
-    let t35 = bootstrap(&t35, &lut2, &sks);
-    let t36 = and(&t35, &t24, 8, &lut, &sks, &cks); // 1
+    let t36 = and(&t24, &t35, 8, &lut, &sks, &cks); // 1
 
-    let t37 = sks.unchecked_add(&t36, &t34); // 19
-    let t38 = sks.unchecked_add(&t27, &t36); // 7
+    let t37 = sks.unchecked_add(&t36, &t34); // 4
+    let t38 = sks.unchecked_add(&t27, &t36); // 3
 
-    let t29 = bootstrap(&t29, &lut2, &sks);
-    let t39 = and(&t29, &t38, 8, &lut, &sks, &cks); // 1
+    let t39 = and(&t38, &t29, 8, &lut, &sks, &cks); // 1
 
 
-    let t40 = sks.unchecked_add(&t25, &t39);
-    let t41 = sks.unchecked_add(&t40, &t37);
-    let t42 = sks.unchecked_add(&t29, &t33);
-    let t43 = sks.unchecked_add(&t29, &t40);
-    let t44 = sks.unchecked_add(&t33, &t37);
-    let t45 = sks.unchecked_add(&t42, &t41);
+    let t40 = sks.unchecked_add(&t25, &t39); // 3
 
-    let t33 = bootstrap(&t33, &lut2, &sks);
-    let t37 = bootstrap(&t37, &lut2, &sks);
-    let t40 = bootstrap(&t40, &lut2, &sks);
+    let t41 = sks.unchecked_add(&t40, &t37); // 8
     let t41 = bootstrap(&t41, &lut2, &sks);
-    let t42 = bootstrap(&t42, &lut2, &sks);
-    let t43 = bootstrap(&t43, &lut2, &sks);
-    let t44 = bootstrap(&t44, &lut2, &sks);
-    let t45 = bootstrap(&t45, &lut2, &sks);
+
+    let t42 = sks.unchecked_add(&t29, &t33); // 4
+    let t43 = sks.unchecked_add(&t29, &t40); // 5
+    let t44 = sks.unchecked_add(&t33, &t37); // 6
+    let t45 = sks.unchecked_add(&t42, &t41); // 5
+
+
+    // let t40 = bootstrap(&t40, &lut2, &sks);
+    // let t41 = bootstrap(&t41, &lut2, &sks);
+    // let t42 = bootstrap(&t42, &lut2, &sks);
+    // let t43 = bootstrap(&t43, &lut2, &sks);
+    // let t44 = bootstrap(&t44, &lut2, &sks);
+    // let t45 = bootstrap(&t45, &lut2, &sks);
 
     println!("T Ciphertexts:");
     println!("t2 {}", cks.decrypt(&t2));
@@ -432,240 +494,129 @@ fn sbox() -> [u64; 8] {
 
 }
 
-fn sag(){
-    // let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
-    let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
 
-    let msg1 = 15;
-
-    let msg2 = 6;
-
-    let mut ct1 = cks.encrypt(msg1);
-    let ct2 = cks.encrypt(msg2);
-    let deg = ct1.degree;
-    println!("Degree: {:?}", deg);
-
-    let f = |n: u64| n;
-    let lut = sks.generate_lookup_table(&f);
-
-    let start = std::time::Instant::now();
-
-    // sks.apply_lookup_table_assign(&mut ct1, &lut);
-
-    // sks.unchecked_scalar_mul_assign(&mut ct1, 8);
-    sks.unchecked_add_assign(&mut ct1, &ct2);
-    // sks.unchecked_add_assign(&mut ct1, &ct2);
-    let deg = ct1.degree;
-    println!("Degree: {:?}", deg);
-    sks.apply_lookup_table_assign(&mut ct1, &lut);
-
-    sks.unchecked_scalar_mul_assign(&mut ct1, 8);
-
-
-
-    let duration = start.elapsed();
-    println!("Time elapsed in expensive_function() is: {:?}", duration);
-
-    let dec = cks.decrypt(&ct1);
-    println!("Decrypted: {:?}", dec);
-
-
-
-    // let f1 = |x: u64| x.pow(2)%16;
-    // let f2 = |x: u64| x.count_ones() as u64;
-    // let f3 = |x: u64| x*5;
-    // let f4 = |x: u64| x-2;
-    // let f5 = |x: u64| x-1;
-
-
-    // let start = std::time::Instant::now();
-
-    // let functions:&[&dyn Fn(u64) -> u64] = &[&f1, &f2, &f3, &f4];
-
-    // let luts = sks.generate_many_lookup_table(functions);
-    // let max = luts.input_max_degree;
-    // println!("Max: {:?}", max);
+fn mix_columns(sks: &ServerKey, inputs: [&Ciphertext; 32]) -> Vec<Ciphertext> {
+    let x = inputs;
     
-    // let vec_res = sks.apply_many_lookup_table(&ct, &luts);
+    let t0 = sks.unchecked_add(&x[0], &x[8]);
+    let t1 = sks.unchecked_add(&x[16], &x[24]);
+    let t2 = sks.unchecked_add(&x[1], &x[9]);
+    let t3 = sks.unchecked_add(&x[17], &x[25]);
+    let t4 = sks.unchecked_add(&x[2], &x[10]);
+    let t5 = sks.unchecked_add(&x[18], &x[26]);
+    let t6 = sks.unchecked_add(&x[3], &x[11]);
+    let t7 = sks.unchecked_add(&x[19], &x[27]);
+    let t8 = sks.unchecked_add(&x[4], &x[12]);
+    let t9 = sks.unchecked_add(&x[20], &x[28]);
+    let t10 = sks.unchecked_add(&x[5], &x[13]);
+    let t11 = sks.unchecked_add(&x[21], &x[29]);
+    let t12 = sks.unchecked_add(&x[6], &x[14]);
+    let t13 = sks.unchecked_add(&x[22], &x[30]);
+    let t14 = sks.unchecked_add(&x[23], &x[31]);
+    let t15 = sks.unchecked_add(&x[7], &x[15]);
+    let t16 = sks.unchecked_add(&x[8], &t1);
+    let y0 = sks.unchecked_add(&t15, &t16);
+    let t17 = sks.unchecked_add(&x[7], &x[23]);
+    let t18 = sks.unchecked_add(&x[24], &t0);
+    let y16 = sks.unchecked_add(&t14, &t18);
+    let t19 = sks.unchecked_add(&t1, &y16);
+    let y24 = sks.unchecked_add(&t17, &t19);
+    let t20 = sks.unchecked_add(&x[27], &t14);
+    let t21 = sks.unchecked_add(&t0, &y0);
+    let y8 = sks.unchecked_add(&t17, &t21);
+    let t22 = sks.unchecked_add(&t5, &t20);
+    let y19 = sks.unchecked_add(&t6, &t22);
+    let t23 = sks.unchecked_add(&x[11], &t15);
+    let t24 = sks.unchecked_add(&t7, &t23);
+    let y3 = sks.unchecked_add(&t4, &t24);
+    let t25 = sks.unchecked_add(&x[2], &x[18]);
+    let t26 = sks.unchecked_add(&t17, &t25);
+    let t27 = sks.unchecked_add(&t9, &t23);
+    let t28 = sks.unchecked_add(&t8, &t20);
+    let t29 = sks.unchecked_add(&x[10], &t2);
+    let y2 = sks.unchecked_add(&t5, &t29);
+    let t30 = sks.unchecked_add(&x[26], &t3);
+    let y18 = sks.unchecked_add(&t4, &t30);
+    let t31 = sks.unchecked_add(&x[9], &x[25]);
+    let t32 = sks.unchecked_add(&t25, &t31);
+    let y10 = sks.unchecked_add(&t30, &t32);
+    let y26 = sks.unchecked_add(&t29, &t32);
+    let t33 = sks.unchecked_add(&x[1], &t18);
+    let t34 = sks.unchecked_add(&x[30], &t11);
+    let y22 = sks.unchecked_add(&t12, &t34);
+    let t35 = sks.unchecked_add(&x[14], &t13);
+    let y6 = sks.unchecked_add(&t10, &t35);
+    let t36 = sks.unchecked_add(&x[5], &x[21]);
+    let t37 = sks.unchecked_add(&x[30], &t17);
+    let t38 = sks.unchecked_add(&x[17], &t16);
+    let t39 = sks.unchecked_add(&x[13], &t8);
+    let y5 = sks.unchecked_add(&t11, &t39);
+    let t40 = sks.unchecked_add(&x[12], &t36);
+    let t41 = sks.unchecked_add(&x[29], &t9);
+    let y21 = sks.unchecked_add(&t10, &t41);
+    let t42 = sks.unchecked_add(&x[28], &t40);
+    let y13 = sks.unchecked_add(&t41, &t42);
+    let y29 = sks.unchecked_add(&t39, &t42);
+    let t43 = sks.unchecked_add(&x[15], &t12);
+    let y7 = sks.unchecked_add(&t14, &t43);
+    let t44 = sks.unchecked_add(&x[14], &t37);
+    let y31 = sks.unchecked_add(&t43, &t44);
+    let t45 = sks.unchecked_add(&x[31], &t13);
+    let y15 = sks.unchecked_add(&t44, &t45);
+    let y23 = sks.unchecked_add(&t15, &t45);
+    let t46 = sks.unchecked_add(&t12, &t36);
+    let y14 = sks.unchecked_add(&y6, &t46);
+    let t47 = sks.unchecked_add(&t31, &t33);
+    let y17 = sks.unchecked_add(&t19, &t47);
+    let t48 = sks.unchecked_add(&t6, &y3);
+    let y11 = sks.unchecked_add(&t26, &t48);
+    let t49 = sks.unchecked_add(&t2, &t38);
+    let y25 = sks.unchecked_add(&y24, &t49);
+    let t50 = sks.unchecked_add(&t7, &y19);
+    let y27 = sks.unchecked_add(&t26, &t50);
+    let t51 = sks.unchecked_add(&x[22], &t46);
+    let y30 = sks.unchecked_add(&t11, &t51);
+    let t52 = sks.unchecked_add(&x[19], &t28);
+    let y20 = sks.unchecked_add(&x[28], &t52);
+    let t53 = sks.unchecked_add(&x[3], &t27);
+    let y4 = sks.unchecked_add(&x[12], &t53);
+    let t54 = sks.unchecked_add(&t3, &t33);
+    let y9 = sks.unchecked_add(&y8, &t54);
+    let t55 = sks.unchecked_add(&t21, &t31);
+    let y1 = sks.unchecked_add(&t38, &t55);
+    let t56 = sks.unchecked_add(&x[4], &t17);
+    let t57 = sks.unchecked_add(&x[19], &t56);
+    let y12 = sks.unchecked_add(&t27, &t57);
+    let t58 = sks.unchecked_add(&x[3], &t28);
+    let t59 = sks.unchecked_add(&t17, &t58);
+    let y28 = sks.unchecked_add(&x[20], &t59);
 
+    vec![
+        y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15,
+        y16, y17, y18, y19, y20, y21, y22, y23, y24, y25, y26, y27, y28, y29, y30, y31,
+    ]
+}
+
+
+fn main() {
+    // let start = std::time::Instant::now();
+    // circuit_boot_vertical_packing();
     // let duration = start.elapsed();
     // println!("Time elapsed in expensive_function() is: {:?}", duration);
 
+    // test();
+    // sag();
 
-    // let functions: &[&dyn Fn(u64) -> u64] = functions;
-    // for (res, function) in vec_res.iter().zip(functions) {
-    //     let dec = cks.decrypt(res);
-    //     println!("Decrypted: {:?}", dec);
-    //     // assert_eq!(dec, function(msg));
-    // }
-}
-
-fn create_sbox_luts(
-    server_key: &ServerKey
-) 
--> (Vec<ManyLookupTable<Vec<u64>>>, Vec<ManyLookupTable<Vec<u64>>>, Vec<ManyLookupTable<Vec<u64>>>) {
-    // Define the functions for the first set of S-box nibbles (first 16)
-    let f1 = |n: u64| n-1;
-    let f2 = |n: u64| n-2;
-    let f3 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 2) as usize] %16;
-    let f4 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 3) as usize] %16;
-    let f5 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 4) as usize] %16;
-    let f6 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 5) as usize] %16;
-    let f7 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 6) as usize] %16;
-    let f8 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 7) as usize] %16;
-
-    let sbox_first_luts1: ManyLookupTable<Vec<u64>> = server_key.generate_many_lookup_table(&[
-        &f1, &f2,&f3
-    ]);
+    let test = [1, 1, 0, 1, 0, 0, 1, 0];
     
-    let f9 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 8) as usize] %16;
-    let f10 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 9) as usize] %16;
-    let f11 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 10) as usize] %16;
-    let f12 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 11) as usize] %16;
-    let f13 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 12) as usize] %16;
-    let f14 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 13) as usize] %16;
-    let f15 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 14) as usize] %16;
-    let f16 = |n: u64| table::SBOX_FIRST_NIBBLE[(n * 16 + 15) as usize] %16;
-
-    let sbox_first_luts2: ManyLookupTable<Vec<u64>> = server_key.generate_many_lookup_table(&[
-        &f2
-    ]);
-    // server_key.
-    // Define the functions for the second set of S-box nibbles (second 16)
-    let f17 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 0) as usize];
-    let f18 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 1) as usize];
-    let f19 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 2) as usize];
-    let f20 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 3) as usize];
-    let f21 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 4) as usize];
-    let f22 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 5) as usize];
-    let f23 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 6) as usize];
-    let f24 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 7) as usize];
-
-    let sbox_second_luts1: ManyLookupTable<Vec<u64>> = server_key.generate_many_lookup_table(&[
-        &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24,
-    ]);
-
-    let f25 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 8) as usize];
-    let f26 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 9) as usize];
-    let f27 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 10) as usize];
-    let f28 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 11) as usize];
-    let f29 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 12) as usize];
-    let f30 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 13) as usize];
-    let f31 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 14) as usize];
-    let f32 = |n: u64| table::SBOX_SECOND_NIBBLE[(n * 16 + 15) as usize];
-
-    let sbox_second_luts2: ManyLookupTable<Vec<u64>> = server_key.generate_many_lookup_table(&[
-        &f25, &f26, &f27, &f28, &f29, &f30, &f31, &f32,
-    ]);
-
-    let g1 = |n: u64| n%16;
-    let g2 = |n: u64| (n-1)%16;
-    let g3 = |n: u64| n%16;
-    let g4 = |n: u64| n%16;
-    let g5 = |n: u64| n%16;
-    let g6 = |n: u64| n%16;
-    let g7 = |n: u64| n%16;
-    let g8 = |n: u64| n%16;
-    
-    let bitmap1 = server_key.generate_many_lookup_table(&[
-        &g1, &g2, &g3, &g4, &g5, &g6, &g7, &g8,
-    ]);
-    
-    let g9 = |n: u64| n%16;
-    let g10 = |n: u64| n%16;
-    let g11 = |n: u64| n%16;
-    let g12 = |n: u64| n%16;
-    let g13 = |n: u64| n%16;
-    let g14 = |n: u64| n%16;
-    let g15 = |n: u64| n%16;
-    let g16 = |n: u64| n%16;
-
-    let bitmap2 = server_key.generate_many_lookup_table(&[
-        &g9, &g10, &g11, &g12, &g13, &g14, &g15, &g16,
-    ]);
-
-    // Return the two vectors of LUTs
-    (
-        vec![sbox_first_luts1, sbox_first_luts2], 
-        vec![sbox_second_luts1, sbox_second_luts2],
-        vec![bitmap1, bitmap2]
-    )
-}
-
-fn sub_bytes(
-    client_key: &ClientKey,
-    server_key: &ServerKey,
-    ct1: &Ciphertext,
-    ct2: &Ciphertext,
-    sbox_first_luts: &Vec<ManyLookupTable<Vec<u64>>>,
-    sbox_second_luts: &Vec<ManyLookupTable<Vec<u64>>>,
-    bitmap: &Vec<ManyLookupTable<Vec<u64>>>,
-) -> (Ciphertext, Ciphertext) {
-    // Apply the first LUT to ct1
-    let mut ct1_row: Vec<Ciphertext> = vec![];
-    for lut in sbox_first_luts {
-        let ct1_lut = server_key.apply_many_lookup_table(&ct1, lut);
-        ct1_row.extend(ct1_lut);
-    }
-    let sag = ct2.degree;
-    println!("SAG: {:?}", sag);
-
-    // let mut bitmap_vector: Vec<Ciphertext> = vec![];
-    // for lut in bitmap {
-    //     let bitmap_lut = server_key.apply_many_lookup_table(&ct2, lut);
-    //     bitmap_vector.extend(bitmap_lut);
-    // }
-
-    // for i in 0..ct1_row.len() {
-    //     server_key.unchecked_mul_lsb_assign(&mut ct1_row[i], &bitmap_vector[i]);
-    // }
-
-    // // add all the ciphertexts using add_assing, and store in vec0
-    // for (i, mut row) in mul_vector.iter().enumerate() {
-    //     let add = server_key.add_assign(row, &ct1_row[i]);
-    //     ct1_row[i] = add;
-    // }
-
-
-
-
-
-    
-    
-    // Print the decrypted rows of ct1
-    // for (i, row) in bitmap_vector.iter().enumerate() {
-    //     let dec_row = client_key.decrypt(row);
-    //     println!("Row {}: {:?}", i, dec_row);
-    // }
-
-    for (i, row) in ct1_row.iter().enumerate() {
-        let dec_row = client_key.decrypt(row);
-        println!("Row {}: {:?}", i, dec_row);
+    loop {
+        let res = sbox();
+        if res != test {
+            assert_eq!(res, test);
+            break;
+        }
     }
 
-    // Apply the second LUT to ct2
-    // let ct2_new = server_key.apply_lookup_table(&ct2, &sbox_second_luts);
 
-    // Return the new ciphertexts
-    (ct1.clone(), ct2.clone())
 }
-
-fn test(){
-    
-    let (client_key, server_key) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_1_KS_PBS_GAUSSIAN_2M64);
-    // let (client_key, server_key) = gen_keys(PARAM_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
-
-    let (sbox_first_luts, sbox_second_luts, bitmap) = create_sbox_luts(&server_key);
-
-    let msg1 = 11 as u64;
-    let msg2 = 2 as u64;
-    let ct1 = client_key.encrypt(msg1 as u64);
-    let ct2 = client_key.encrypt(msg2 as u64);
-    
-    let start = std::time::Instant::now();
-    let (ct1_new, ct2_new) = sub_bytes(&client_key, &server_key, &ct1, &ct2, &sbox_first_luts, &sbox_second_luts, &bitmap);
-    let duration = start.elapsed();
-    println!("Time elapsed in expensive_function() is: {:?}", duration);
-}
-
 

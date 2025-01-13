@@ -219,6 +219,6 @@ def linear_transformation(x):
     return [s0, s1, s2, s3, s4, s5, s6, s7]
 
 # Example usage with 8-bit input
-x = [1,1,1,0,1,1,1,1]  # Replace with actual bit inputs
+x = [0,1,1,1,1,1,1,1]  # Replace with actual bit inputs
 result = linear_transformation(x)
 print("Result:", result)
