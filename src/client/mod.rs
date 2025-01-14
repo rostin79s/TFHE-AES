@@ -6,3 +6,5 @@ use rand::Rng; // For generating random numbers.
 pub mod client;
 
 pub use client::*;
+
+pub use crate::tables::table;

@@ -1,13 +1,15 @@
 mod client;
-use client::client_init;
-
 mod server;
-use server::aes_key_expansion;
+mod tables;
+
+use client::client_init;
+// use server::e;
 use server::AES_encrypt;
 
 fn main() {
     let (cks, sks, message_bits, key_bits) = client_init();
 
+    
 
 
 
