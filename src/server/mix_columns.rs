@@ -1,7 +1,7 @@
 use super::*;
 
 
-pub fn mix_columns(sks: &ServerKey, x: &mut [Ciphertext]) {
+pub fn mix_columns(sks: &ServerKey, x: &Vec<Ciphertext>) -> Vec<Ciphertext> {
     
     let t0 = sks.unchecked_add(&x[0], &x[8]);
     let t1 = sks.unchecked_add(&x[16], &x[24]);
@@ -96,36 +96,37 @@ pub fn mix_columns(sks: &ServerKey, x: &mut [Ciphertext]) {
     let t59 = sks.unchecked_add(&t17, &t58);
     let y28 = sks.unchecked_add(&x[20], &t59);
 
-    x[0] = y0;
-    x[1] = y1;
-    x[2] = y2;
-    x[3] = y3;
-    x[4] = y4;
-    x[5] = y5;
-    x[6] = y6;
-    x[7] = y7;
-    x[8] = y8;
-    x[9] = y9;
-    x[10] = y10;
-    x[11] = y11;
-    x[12] = y12;
-    x[13] = y13;
-    x[14] = y14;
-    x[15] = y15;
-    x[16] = y16;
-    x[17] = y17;
-    x[18] = y18;
-    x[19] = y19;
-    x[20] = y20;
-    x[21] = y21;
-    x[22] = y22;
-    x[23] = y23;
-    x[24] = y24;
-    x[25] = y25;
-    x[26] = y26;
-    x[27] = y27;
-    x[28] = y28;
-    x[29] = y29;
-    x[30] = y30;
-    x[31] = y31;
+    vec![y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15, y16, y17, y18, y19, y20, y21, y22, y23, y24, y25, y26, y27, y28, y29, y30, y31]
+    // x[0] = y0;
+    // x[1] = y1;
+    // x[2] = y2;
+    // x[3] = y3;
+    // x[4] = y4;
+    // x[5] = y5;
+    // x[6] = y6;
+    // x[7] = y7;
+    // x[8] = y8;
+    // x[9] = y9;
+    // x[10] = y10;
+    // x[11] = y11;
+    // x[12] = y12;
+    // x[13] = y13;
+    // x[14] = y14;
+    // x[15] = y15;
+    // x[16] = y16;
+    // x[17] = y17;
+    // x[18] = y18;
+    // x[19] = y19;
+    // x[20] = y20;
+    // x[21] = y21;
+    // x[22] = y22;
+    // x[23] = y23;
+    // x[24] = y24;
+    // x[25] = y25;
+    // x[26] = y26;
+    // x[27] = y27;
+    // x[28] = y28;
+    // x[29] = y29;
+    // x[30] = y30;
+    // x[31] = y31;
 }

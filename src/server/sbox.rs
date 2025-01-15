@@ -98,28 +98,28 @@ pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
 
     
 
-    println!("Y Ciphertexts:");
-    println!("y1 {}", cks.decrypt(&y1));
-    println!("y2 {}", cks.decrypt(&y2));
-    println!("y3 {}", cks.decrypt(&y3));
-    println!("y4 {}", cks.decrypt(&y4));
-    println!("y5 {}", cks.decrypt(&y5));
-    println!("y6 {}", cks.decrypt(&y6));
-    println!("y7 {}", cks.decrypt(&y7));
-    println!("y8 {}", cks.decrypt(&y8));
-    println!("y9 {}", cks.decrypt(&y9));
-    println!("y10 {}", cks.decrypt(&y10));
-    println!("y11 {}", cks.decrypt(&y11));
-    println!("y12 {}", cks.decrypt(&y12));
-    println!("y13 {}", cks.decrypt(&y13));
-    println!("y14 {}", cks.decrypt(&y14));
-    println!("y15 {}", cks.decrypt(&y15));
-    println!("y16 {}", cks.decrypt(&y16));
-    println!("y17 {}", cks.decrypt(&y17));
-    println!("y18 {}", cks.decrypt(&y18));
-    println!("y19 {}", cks.decrypt(&y19));
-    println!("y20 {}", cks.decrypt(&y20));
-    println!("y21 {}", cks.decrypt(&y21));
+    // println!("Y Ciphertexts:");
+    // println!("y1 {}", cks.decrypt(&y1));
+    // println!("y2 {}", cks.decrypt(&y2));
+    // println!("y3 {}", cks.decrypt(&y3));
+    // println!("y4 {}", cks.decrypt(&y4));
+    // println!("y5 {}", cks.decrypt(&y5));
+    // println!("y6 {}", cks.decrypt(&y6));
+    // println!("y7 {}", cks.decrypt(&y7));
+    // println!("y8 {}", cks.decrypt(&y8));
+    // println!("y9 {}", cks.decrypt(&y9));
+    // println!("y10 {}", cks.decrypt(&y10));
+    // println!("y11 {}", cks.decrypt(&y11));
+    // println!("y12 {}", cks.decrypt(&y12));
+    // println!("y13 {}", cks.decrypt(&y13));
+    // println!("y14 {}", cks.decrypt(&y14));
+    // println!("y15 {}", cks.decrypt(&y15));
+    // println!("y16 {}", cks.decrypt(&y16));
+    // println!("y17 {}", cks.decrypt(&y17));
+    // println!("y18 {}", cks.decrypt(&y18));
+    // println!("y19 {}", cks.decrypt(&y19));
+    // println!("y20 {}", cks.decrypt(&y20));
+    // println!("y21 {}", cks.decrypt(&y21));
 
 
     // middle non-linear layer
@@ -208,46 +208,46 @@ pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
     // let t44 = bootstrap(&t44, &lut2, &sks);
     // let t45 = bootstrap(&t45, &lut2, &sks);
 
-    println!("T Ciphertexts:");
-    println!("t2 {}", cks.decrypt(&t2));
-    println!("t3 {}", cks.decrypt(&t3));
-    println!("t4 {}", cks.decrypt(&t4));
-    println!("t5 {}", cks.decrypt(&t5));
-    println!("t6 {}", cks.decrypt(&t6));
-    println!("t7 {}", cks.decrypt(&t7));
-    println!("t8 {}", cks.decrypt(&t8));
-    println!("t9 {}", cks.decrypt(&t9));
-    println!("t10 {}", cks.decrypt(&t10));
-    println!("t11 {}", cks.decrypt(&t11));
-    println!("t12 {}", cks.decrypt(&t12));
-    println!("t13 {}", cks.decrypt(&t13));
-    println!("t14 {}", cks.decrypt(&t14));
-    println!("t15 {}", cks.decrypt(&t15));
-    println!("t21 {}", cks.decrypt(&t21));
-    println!("t22 {}", cks.decrypt(&t22));
-    println!("t23 {}", cks.decrypt(&t23));
-    println!("t24 {}", cks.decrypt(&t24));
-    println!("t25 {}", cks.decrypt(&t25));
-    println!("t26 {}", cks.decrypt(&t26));
-    println!("t27 {}", cks.decrypt(&t27));
-    println!("t28 {}", cks.decrypt(&t28));
-    println!("t29 {}", cks.decrypt(&t29));
-    println!("t30 {}", cks.decrypt(&t30));
-    println!("t31 {}", cks.decrypt(&t31));
-    println!("t32 {}", cks.decrypt(&t32));
-    println!("t33 {}", cks.decrypt(&t33));
-    println!("t34 {}", cks.decrypt(&t34));
-    println!("t35 {}", cks.decrypt(&t35));
-    println!("t36 {}", cks.decrypt(&t36));
-    println!("t37 {}", cks.decrypt(&t37));
-    println!("t38 {}", cks.decrypt(&t38));
-    println!("t39 {}", cks.decrypt(&t39));
-    println!("t40 {}", cks.decrypt(&t40));
-    println!("t41 {}", cks.decrypt(&t41));
-    println!("t42 {}", cks.decrypt(&t42));
-    println!("t43 {}", cks.decrypt(&t43));
-    println!("t44 {}", cks.decrypt(&t44));
-    println!("t45 {}", cks.decrypt(&t45));
+    // println!("T Ciphertexts:");
+    // println!("t2 {}", cks.decrypt(&t2));
+    // println!("t3 {}", cks.decrypt(&t3));
+    // println!("t4 {}", cks.decrypt(&t4));
+    // println!("t5 {}", cks.decrypt(&t5));
+    // println!("t6 {}", cks.decrypt(&t6));
+    // println!("t7 {}", cks.decrypt(&t7));
+    // println!("t8 {}", cks.decrypt(&t8));
+    // println!("t9 {}", cks.decrypt(&t9));
+    // println!("t10 {}", cks.decrypt(&t10));
+    // println!("t11 {}", cks.decrypt(&t11));
+    // println!("t12 {}", cks.decrypt(&t12));
+    // println!("t13 {}", cks.decrypt(&t13));
+    // println!("t14 {}", cks.decrypt(&t14));
+    // println!("t15 {}", cks.decrypt(&t15));
+    // println!("t21 {}", cks.decrypt(&t21));
+    // println!("t22 {}", cks.decrypt(&t22));
+    // println!("t23 {}", cks.decrypt(&t23));
+    // println!("t24 {}", cks.decrypt(&t24));
+    // println!("t25 {}", cks.decrypt(&t25));
+    // println!("t26 {}", cks.decrypt(&t26));
+    // println!("t27 {}", cks.decrypt(&t27));
+    // println!("t28 {}", cks.decrypt(&t28));
+    // println!("t29 {}", cks.decrypt(&t29));
+    // println!("t30 {}", cks.decrypt(&t30));
+    // println!("t31 {}", cks.decrypt(&t31));
+    // println!("t32 {}", cks.decrypt(&t32));
+    // println!("t33 {}", cks.decrypt(&t33));
+    // println!("t34 {}", cks.decrypt(&t34));
+    // println!("t35 {}", cks.decrypt(&t35));
+    // println!("t36 {}", cks.decrypt(&t36));
+    // println!("t37 {}", cks.decrypt(&t37));
+    // println!("t38 {}", cks.decrypt(&t38));
+    // println!("t39 {}", cks.decrypt(&t39));
+    // println!("t40 {}", cks.decrypt(&t40));
+    // println!("t41 {}", cks.decrypt(&t41));
+    // println!("t42 {}", cks.decrypt(&t42));
+    // println!("t43 {}", cks.decrypt(&t43));
+    // println!("t44 {}", cks.decrypt(&t44));
+    // println!("t45 {}", cks.decrypt(&t45));
 
     let shift = 8;
     
@@ -271,25 +271,25 @@ pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
     let z17 = and(&t41, &y8, shift, &lut, &sks, &cks);
 
 
-    println!("Z Ciphertexts:");
-    println!("z0: {}", cks.decrypt(&z0));
-    println!("z1: {}", cks.decrypt(&z1));
-    println!("z2: {}", cks.decrypt(&z2));
-    println!("z3: {}", cks.decrypt(&z3));
-    println!("z4: {}", cks.decrypt(&z4));
-    println!("z5: {}", cks.decrypt(&z5));
-    println!("z6: {}", cks.decrypt(&z6));
-    println!("z7: {}", cks.decrypt(&z7));
-    println!("z8: {}", cks.decrypt(&z8));
-    println!("z9: {}", cks.decrypt(&z9));
-    println!("z10: {}", cks.decrypt(&z10));
-    println!("z11: {}", cks.decrypt(&z11));
-    println!("z12: {}", cks.decrypt(&z12));
-    println!("z13: {}", cks.decrypt(&z13));
-    println!("z14: {}", cks.decrypt(&z14));
-    println!("z15: {}", cks.decrypt(&z15));
-    println!("z16: {}", cks.decrypt(&z16));
-    println!("z17: {}", cks.decrypt(&z17));
+    // println!("Z Ciphertexts:");
+    // println!("z0: {}", cks.decrypt(&z0));
+    // println!("z1: {}", cks.decrypt(&z1));
+    // println!("z2: {}", cks.decrypt(&z2));
+    // println!("z3: {}", cks.decrypt(&z3));
+    // println!("z4: {}", cks.decrypt(&z4));
+    // println!("z5: {}", cks.decrypt(&z5));
+    // println!("z6: {}", cks.decrypt(&z6));
+    // println!("z7: {}", cks.decrypt(&z7));
+    // println!("z8: {}", cks.decrypt(&z8));
+    // println!("z9: {}", cks.decrypt(&z9));
+    // println!("z10: {}", cks.decrypt(&z10));
+    // println!("z11: {}", cks.decrypt(&z11));
+    // println!("z12: {}", cks.decrypt(&z12));
+    // println!("z13: {}", cks.decrypt(&z13));
+    // println!("z14: {}", cks.decrypt(&z14));
+    // println!("z15: {}", cks.decrypt(&z15));
+    // println!("z16: {}", cks.decrypt(&z16));
+    // println!("z17: {}", cks.decrypt(&z17));
 
 
 
@@ -317,15 +317,17 @@ pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
     let t65 = sks.unchecked_add(&t61, &t62);
     let t66 = sks.unchecked_add(&z1, &t63);
 
-    println!("T Ciphertexts:");
-    println!("t46: {}", cks.decrypt(&t46));
-    println!("t47: {}", cks.decrypt(&t47));
-    println!("t48: {}", cks.decrypt(&t48));
-    println!("t49: {}", cks.decrypt(&t49));
-    println!("t50: {}", cks.decrypt(&t50));
-    println!("t51: {}", cks.decrypt(&t51));
-    println!("t59: {}", cks.decrypt(&t59));
-    println!("t63: {}", cks.decrypt(&t63));
+    // println!("T Ciphertexts:");
+    // println!("t46: {}", cks.decrypt(&t46));
+    // println!("t47: {}", cks.decrypt(&t47));
+    // println!("t48: {}", cks.decrypt(&t48));
+    // println!("t49: {}", cks.decrypt(&t49));
+    // println!("t50: {}", cks.decrypt(&t50));
+    // println!("t51: {}", cks.decrypt(&t51));
+    // println!("t59: {}", cks.decrypt(&t59));
+    // println!("t63: {}", cks.decrypt(&t63));
+
+
     let s0 = sks.unchecked_add(&t59, &t63);
     let s6 = sks.unchecked_scalar_add(&sks.unchecked_add(&t56, &t62),1);
     let s7 = sks.unchecked_scalar_add(&sks.unchecked_add(&t48, &t60),1);
@@ -346,15 +348,15 @@ pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
     // let s7 = bootstrap(&s7, &lut2, &sks);
     
 
-    println!("Decrypted S-Box Results:");
-    println!("s0: {}", cks.decrypt(&s0)%2);
-    println!("s1: {}", cks.decrypt(&s1)%2);
-    println!("s2: {}", cks.decrypt(&s2)%2);
-    println!("s3: {}", cks.decrypt(&s3)%2);
-    println!("s4: {}", cks.decrypt(&s4)%2);
-    println!("s5: {}", cks.decrypt(&s5)%2);
-    println!("s6: {}", cks.decrypt(&s6)%2);
-    println!("s7: {}", cks.decrypt(&s7)%2);
+    // println!("Decrypted S-Box Results:");
+    // println!("s0: {}", cks.decrypt(&s0)%2);
+    // println!("s1: {}", cks.decrypt(&s1)%2);
+    // println!("s2: {}", cks.decrypt(&s2)%2);
+    // println!("s3: {}", cks.decrypt(&s3)%2);
+    // println!("s4: {}", cks.decrypt(&s4)%2);
+    // println!("s5: {}", cks.decrypt(&s5)%2);
+    // println!("s6: {}", cks.decrypt(&s6)%2);
+    // println!("s7: {}", cks.decrypt(&s7)%2);
     
 
 

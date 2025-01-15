@@ -3,13 +3,34 @@ mod server;
 mod tables;
 
 use client::client_init;
-// use server::e;
 use server::AES_encrypt;
 
-fn main() {
-    let (cks, sks, message_bits, key_bits) = client_init();
+use tfhe::set_server_key;
 
+fn main() {
+    let (cks, sks, encrypted_round_keys, mut encrypted_message_bits ) = client_init();
     
+    // rayon::broadcast(|_| set_server_key(sks.clone()));
+    // set_server_key(sks);
+
+    let start = std::time::Instant::now();
+
+    AES_encrypt(&cks, &sks, &mut encrypted_message_bits, &encrypted_round_keys);
+
+    // enumerate the encrypted message bits and decrypt %2 
+    // and reconstruct the original 128 bit message
+    let mut message = 0;
+    for (i, bit) in encrypted_message_bits.iter().enumerate() {
+        let decrypted_bit = cks.decrypt(bit) % 2;
+        println!("x{}: {}", i, decrypted_bit); 
+        message |= (decrypted_bit as u128) << i;
+    }
+    println!("Message: {:032x}", message);
+    
+
+
+    let elapsed = start.elapsed();
+    println!("Time elapsed: {:?}", elapsed);
 
 
 

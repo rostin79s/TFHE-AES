@@ -7,3 +7,4 @@ edition = "2021"
 tfhe = { version = "0.8.7", features = ["integer", "x86_64-unix"]}
 rand = "0.8"
 aes = "0.8.4"
+rayon = "1.7"
