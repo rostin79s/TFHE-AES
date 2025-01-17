@@ -17,7 +17,10 @@ pub fn client_init() -> (ClientKey, ServerKey, Vec<Vec<Ciphertext>>, Vec<Ciphert
         println!("Round {}: {:032x}", i, round_key);
     }
 
-    let message_bits: Vec<bool> = (0..128).map(|i| (message >> i) & 1 == 1).collect();
+    let message_bits: Vec<bool> = (0..128)
+    .rev() // Iterate in reverse order: MSB to LSB
+    .map(|i| (message >> i) & 1 == 1)
+    .collect();
 
     let encrypted_message_bits: Vec<Ciphertext> = message_bits
         .iter()

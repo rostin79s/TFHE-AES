@@ -2,49 +2,41 @@ use super::*;
 
 pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mut Vec<Ciphertext>, encrypted_round_keys: &Vec<Vec<Ciphertext>>){
 
-    let rounds = 10;
+    let rounds = 2;
     let state_size = 128; // AES works on 128-bit blocks
     let bytes_per_state = state_size / 8;
 
     add_round_key(sks,  encrypted_message_bits, &encrypted_round_keys[0]);
 
     for round in 1..rounds {
-        // Apply S-Box substitution on each byte (8 ciphertexts)
         
-        // for byte_start in (0..bytes_per_state).map(|i| i * 8) {
-        //     sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
-        // }
-
-        let encrypted_message_bits_mutex = Mutex::new(encrypted_message_bits.clone());
-        (0..bytes_per_state).into_par_iter().for_each(|i| {
-            let byte_start = i * 8;
-            let mut encrypted_message_bits = encrypted_message_bits_mutex.lock().unwrap();
+        for byte_start in (0..bytes_per_state).map(|i| i * 8) {
             sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
-        });
-        *encrypted_message_bits = encrypted_message_bits_mutex.into_inner().unwrap();
-
-        // Apply ShiftRows
-        shift_rows(encrypted_message_bits);
-
-        // Apply MixColumns
-        let mut new_state: Vec<Ciphertext> = Vec::with_capacity(128);
-        for col in 0..4 {
-            let mut column: Vec<Ciphertext> = Vec::with_capacity(32);
-            for row in 0..4 {
-                let index = row * 32 + col * 8;
-                column.extend_from_slice(&encrypted_message_bits[index..index + 8]);
-            }
-            let mixed_column = mix_columns(sks, &column);
-            new_state.extend_from_slice(&mixed_column);
         }
 
-        // Update encrypted_message_bits with new_state
-        encrypted_message_bits.clear();
-        encrypted_message_bits.extend_from_slice(&new_state);
+  
+
+        // shift_rows(encrypted_message_bits);
+
+  
+        // let mut new_state: Vec<Ciphertext> = Vec::with_capacity(128);
+        // for col in 0..4 {
+        //     let mut column: Vec<Ciphertext> = Vec::with_capacity(32);
+        //     for row in 0..4 {
+        //         let index = row * 32 + col * 8;
+        //         column.extend_from_slice(&encrypted_message_bits[index..index + 8]);
+        //     }
+        //     let mixed_column = mix_columns(sks, &column);
+        //     new_state.extend_from_slice(&mixed_column);
+        // }
 
 
-        // Add Round Key
-        add_round_key(sks, encrypted_message_bits, &encrypted_round_keys[round]);
+        // encrypted_message_bits.clear();
+        // encrypted_message_bits.extend_from_slice(&new_state);
+
+
+      
+        // add_round_key(sks, encrypted_message_bits, &encrypted_round_keys[round]);
     }
 
     
@@ -52,17 +44,17 @@ pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mu
     //     sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
     // }
 
-    let encrypted_message_bits_mutex = Mutex::new(encrypted_message_bits.clone());
-        (0..bytes_per_state).into_par_iter().for_each(|i| {
-            let byte_start = i * 8;
-            let mut encrypted_message_bits = encrypted_message_bits_mutex.lock().unwrap();
-            sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
-        });
-    *encrypted_message_bits = encrypted_message_bits_mutex.into_inner().unwrap();
+    // let encrypted_message_bits_mutex = Mutex::new(encrypted_message_bits.clone());
+    //     (0..bytes_per_state).into_par_iter().for_each(|i| {
+    //         let byte_start = i * 8;
+    //         let mut encrypted_message_bits = encrypted_message_bits_mutex.lock().unwrap();
+    //         sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
+    //     });
+    // *encrypted_message_bits = encrypted_message_bits_mutex.into_inner().unwrap();
 
 
-    shift_rows(encrypted_message_bits);
-    add_round_key(sks, encrypted_message_bits, &encrypted_round_keys[rounds]);
+    // shift_rows(encrypted_message_bits);
+    // add_round_key(sks, encrypted_message_bits, &encrypted_round_keys[rounds]);
 }
 
 
