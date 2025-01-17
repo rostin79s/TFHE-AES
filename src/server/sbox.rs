@@ -20,6 +20,8 @@ fn bootstrap(ct: &Ciphertext, lut: &LookupTable<Vec<u64>>, sks: &ServerKey) -> C
 
 pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
 
+    let start = std::time::Instant::now();
+
     let x0: &Ciphertext = &x[0];
     let x1: &Ciphertext = &x[1];
     let x2: &Ciphertext = &x[2];
@@ -369,6 +371,8 @@ pub fn sbox(cks: &ClientKey, sks: &ServerKey, x: &mut [Ciphertext]) {
     x[6] = s6;
     x[7] = s7;
 
+    let elapsed = start.elapsed();
+    println!("Time elapsed: {:?}", elapsed);
 
 }
 

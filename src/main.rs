@@ -23,7 +23,7 @@ fn main() {
     let num_bits = encrypted_message_bits.len();
     for (i, bit) in encrypted_message_bits.iter().enumerate() {
         let decrypted_bit = cks.decrypt(bit) % 2;
-        println!("x{}: {}", i, decrypted_bit);
+        // println!("x{}: {}", i, decrypted_bit);
         // Calculate the position from MSB
         let position = num_bits - 1 - i;
         message |= (decrypted_bit as u128) << position;

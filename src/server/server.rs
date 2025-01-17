@@ -1,5 +1,7 @@
 use super::*;
 
+use std::sync::Arc;
+
 pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mut Vec<Ciphertext>, encrypted_round_keys: &Vec<Vec<Ciphertext>>){
 
     let rounds = 2;
@@ -10,11 +12,19 @@ pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mu
 
     for round in 1..rounds {
         
-        for byte_start in (0..bytes_per_state).map(|i| i * 8) {
-            sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
-        }
+        // for byte_start in (0..bytes_per_state).map(|i| i * 8) {
+        //     sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
+        // }
 
-  
+        encrypted_message_bits
+        .par_chunks_mut(8)
+        .for_each(|chunk| {
+            sbox(cks, sks, chunk); 
+        });
+
+
+
+        
 
         // shift_rows(encrypted_message_bits);
 

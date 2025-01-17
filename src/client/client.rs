@@ -1,8 +1,19 @@
+
+
+use tfhe::shortint::parameters::{gaussian::p_fail_2_minus_64::ks_pbs::PARAM_MESSAGE_4_CARRY_0_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, p_fail_2_minus_64::ks_pbs::PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS};
+
 use super::*;
+
+
 
 pub fn client_init() -> (ClientKey, ServerKey, Vec<Vec<Ciphertext>>, Vec<Ciphertext>) {
    
     let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
+    // let (cks, sks) = gen_keys(PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS);
+
+    
+    
+
     
     // let mut rng = rand::thread_rng();
     // let message: u128 = rng.gen(); // Random 128-bit message
