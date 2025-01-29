@@ -8,8 +8,8 @@ use super::*;
 
 pub fn client_init() -> (ClientKey, ServerKey, Vec<Vec<Ciphertext>>, Vec<Ciphertext>) {
    
-    let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
-    // let (cks, sks) = gen_keys(PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS);
+    // let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
+    let (cks, sks) = gen_keys(PARAM_MESSAGE_4_CARRY_0_COMPACT_PK_KS_PBS_GAUSSIAN_2M64);
 
     
     
