@@ -1,72 +1,68 @@
-mod client;
-mod server;
+use std::{collections::HashMap};
+use tfhe::{
+    integer::{
+        gen_keys_radix, wopbs::*,
+    },
+    shortint::parameters::{
+        parameters_wopbs_message_carry::WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_MESSAGE_2_CARRY_0_KS_PBS, PARAM_MESSAGE_2_CARRY_2_KS_PBS, WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_5_CARRY_0_KS_PBS, WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_8_CARRY_0_KS_PBS, WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_4_CARRY_0_KS_PBS, WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_2_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_2_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_4_CARRY_0_KS_PBS
+    },
+};
+use tfhe::integer::*;
+use tfhe::shortint::*;
+
 mod tables;
-
-use client::client_init;
-use server::AES_encrypt;
-
-use tfhe::set_server_key;
-
-use tfhe::shortint::parameters::gaussian::p_fail_2_minus_64::ks_pbs::PARAM_MESSAGE_2_CARRY_0_COMPACT_PK_KS_PBS_GAUSSIAN_2M64;
-use tfhe::shortint::parameters::{PARAM_MESSAGE_2_CARRY_0, PARAM_MESSAGE_2_CARRY_0_KS_PBS, PARAM_MESSAGE_3_CARRY_0_KS_PBS, PARAM_MESSAGE_3_CARRY_0_KS_PBS_GAUSSIAN_2M64};
-use tfhe::shortint::prelude::*;
+use tables::table::SBOX;
 
 fn main() {
-    // let (cks, sks, encrypted_round_keys, mut encrypted_message_bits ) = client_init();
+    let nb_block = 8;
+    //Generate the client key and the server key:
+    let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+
+    // let (cks, sks) = gen_keys_radix(WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+
+
+    // let nb_block = 4;
+    // //Generate the client key and the server key:
+    // let (cks, sks) = gen_keys_radix(WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, nb_block);
+
+    let (cks_s, sks_s) = gen_keys(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS);
+
+
+
+
+    let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
+    let mut moduli = 1_u64;
+    for _ in 0..nb_block {
+        moduli *= cks.parameters().message_modulus().0 as u64;
+    }
+    println!("Moduli: {}", moduli);
+    let clear = 0x00 % moduli;
+    let mut ct = cks.encrypt(clear as u64);
+
+
+    // let mut blocks: &mut [tfhe::shortint::Ciphertext] = ct.blocks_mut();
+    // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
+    // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
+    // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
+    // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
     
-    // // rayon::broadcast(|_| set_server_key(sks.clone()));
-    // // set_server_key(sks);
+    let lut = wopbs_key.generate_lut_radix(&ct, |x| SBOX[x as usize] as u64);
 
-    // let start = std::time::Instant::now();
-
-    // AES_encrypt(&cks, &sks, &mut encrypted_message_bits, &encrypted_round_keys);
-
-    // // enumerate the encrypted message bits and decrypt %2 
-    // // and reconstruct the original 128 bit message
-    // let mut message = 0;
-    // let num_bits = encrypted_message_bits.len();
-    // for (i, bit) in encrypted_message_bits.iter().enumerate() {
-    //     let decrypted_bit = cks.decrypt(bit) % 2;
-    //     // println!("x{}: {}", i, decrypted_bit);
-    //     // Calculate the position from MSB
-    //     let position = num_bits - 1 - i;
-    //     message |= (decrypted_bit as u128) << position;
-    // }
-    // println!("Message: {:032x}", message);
-    
+    // sks.unchecked_scalar_add_assign(&mut ct,1);
 
 
-    // let elapsed = start.elapsed();
-    // println!("Time elapsed: {:?}", elapsed);
-
-
-
-    let (client_key, server_key) = gen_keys(PARAM_MESSAGE_2_CARRY_0_KS_PBS);
-
-    let msg1 = 3;
-
-    // We use the private client key to encrypt a message:
-    let ct_1 = client_key.encrypt(msg1);
-
-    // Compute the lookup table for the univariate function:
-    let acc = server_key.generate_lookup_table(|n| n.count_ones().into());
-
-    // Apply the table lookup on the input message:
     let start = std::time::Instant::now();
-    let mut ct_res = server_key.apply_lookup_table(&ct_1, &acc);
+
+    let ct_res = wopbs_key.wopbs(&ct, &lut);
 
     let elapsed = start.elapsed();
-    println!("Time elapsed: {:?}", elapsed);
-
-    server_key.unchecked_scalar_add_assign(&mut ct_res, 3);
-
-    // We use the client key to decrypt the output of the circuit:
-    let output = client_key.decrypt(&ct_res);
-    println!("Decrypted output: {}", output);
-    // assert_eq!(output, msg1.count_ones() as u64);
+    println!("Time taken: {:?}", elapsed);
 
 
 
+    let res: u64 = cks.decrypt(&ct_res);
+    println!("Result: {}", res);
+
+    // assert_eq!(res, (clear * 2) % moduli)
 
 }
-
