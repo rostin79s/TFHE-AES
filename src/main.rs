@@ -71,22 +71,63 @@ pub const sag: WopbsParameters = WopbsParameters {
 };
 
 
+fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT
+    where
+        F: Fn(u64) -> u64,
+        T: IntegerCiphertext,
+    {
+        let log_message_modulus =
+            f64::log2((message_mod) as f64) as u64;
+        let log_carry_modulus = f64::log2((carry_mod) as f64) as u64;
+        let log_basis = log_message_modulus + log_carry_modulus;
+        let delta = 64 - log_basis;
+        let nb_block = ct.blocks().len();
+        let poly_size = poly_size;
+        let mut lut_size = 1 << (nb_block * log_basis as usize);
+        if lut_size < poly_size {
+            lut_size = poly_size;
+        }
+        let mut lut = IntegerWopbsLUT::new(PlaintextCount(lut_size), CiphertextCount(nb_block));
+
+        for index in 0..lut_size {
+            // find the value represented by the index
+            let mut value = 0;
+            let mut tmp_index = index;
+            for i in 0..nb_block as u64 {
+                let tmp = tmp_index % (1 << log_basis); // Extract only the relevant block
+                tmp_index >>= log_basis; // Move to the next block
+                value += tmp << (log_message_modulus * i); // Properly reconstruct `value`
+            }
+
+            // fill the LUTs
+            for block_index in 0..nb_block {
+                let masked_value = (f(value as u64) >> (log_message_modulus * block_index as u64))
+                    % (1 << log_message_modulus);  // Mask the value using the message modulus
+            
+                lut[block_index][index] = masked_value << delta;  // Apply delta to the LUT entry
+            }
+        }
+        lut
+    }
+
+
 fn main() {
 
-    let nb_block = 2;
-    let (cks, sks) = gen_keys_radix(WOPBS_PARAM_MESSAGE_3_CARRY_0_KS_PBS, nb_block);
-
+    let nb_block = 8;
+    let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+    // let (cks, sks) = gen_keys_radix(WOPBS_PARAM_MESSAGE_3_CARRY_1_KS_PBS, nb_block);
 
 
 
     let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
 
-    let modulus = cks.parameters().message_modulus().0;
-    let carry = cks.parameters().carry_modulus().0;
+    let message_mod = cks.parameters().message_modulus().0;
+    let carry_mod = cks.parameters().carry_modulus().0;
 
 
-    println!("Modulus: {}", modulus);
-    println!("Carry: {}", carry);
+
+    println!("Modulus: {}", message_mod);
+    println!("Carry: {}", carry_mod);
 
     let mut moduli = 1_u64;
     for _ in 0..nb_block {
@@ -94,8 +135,14 @@ fn main() {
     }
     println!("Moduli: {}", moduli);
 
+    let x = 2;
+    let y = x>>0;
+    println!("y: {}", y);
+
     let clear = 1 % moduli;
     let mut ct = cks.encrypt_without_padding(clear as u64);
+
+    
 
 
     // let mut blocks: &mut [tfhe::shortint::Ciphertext] = ct.blocks_mut();
@@ -103,8 +150,11 @@ fn main() {
     // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
     // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
     // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
+
+    let poly_size = 512;
+    let f = |x| x as u64;
     
-    let lut = wopbs_key.generate_lut_radix_without_padding(&ct, |x| x as u64);
+    let lut = gen_lut(message_mod, carry_mod, poly_size, &ct, f);
 
     let scal = cks.encrypt_without_padding(1 as u64);
 
