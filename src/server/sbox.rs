@@ -13,14 +13,14 @@ pub fn sbox(wopbs_key: &WopbsKey, x: &mut BaseRadixCiphertext<Ciphertext>) {
     let poly_size = 512;
     let f = |x| SBOX[x as usize] as u64;
 
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
     
     let lut = gen_lut(message_mod, carry_mod, poly_size, x, f);
 
     let ct_res = wopbs_key.wopbs_without_padding(x, &lut);
     *x = ct_res;
 
-    println!("Sbox: {:?}", start.elapsed());
+    // println!("Sbox: {:?}", start.elapsed());
 }
 
 

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
 
-    let rounds = 2;
+    let rounds = 10;
     let state_size = 128; // AES works on 128-bit blocks
     let bytes_per_state = state_size / 8;
 
@@ -16,7 +16,7 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
 
     for round in 1..rounds {
 
-        let start = std::time::Instant::now();
+        // let start = std::time::Instant::now();
         
         // for byte_ct in state.iter_mut() {
         //     sbox(cks, sks, wopbs_key, byte_ct);
@@ -40,15 +40,15 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
       
         add_round_key(sks, state, &encrypted_round_keys[round]);
 
-        println!("Total: {:?}", start.elapsed());
+        // println!("Total: {:?}", start.elapsed());
     }
 
     
-    // state.par_iter_mut().for_each(|byte_ct| {
-    //     sbox(&wopbs_key, byte_ct);
-    // });
-    // shift_rows(state);
-    // add_round_key(sks, state, &encrypted_round_keys[rounds]);
+    state.par_iter_mut().for_each(|byte_ct| {
+        sbox(&wopbs_key, byte_ct);
+    });
+    shift_rows(state);
+    add_round_key(sks, state, &encrypted_round_keys[rounds]);
 }
 
 

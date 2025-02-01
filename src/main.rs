@@ -70,6 +70,9 @@ fn main() {
 
     AES_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
 
+    let elapsed = start.elapsed();
+    println!("Time taken: {:?}", elapsed);
+
 
     let mut message = 0;
     let num_bytes = state.len();
