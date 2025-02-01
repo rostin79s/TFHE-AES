@@ -1,22 +1,27 @@
+use tfhe::integer::{wopbs::WopbsKey, RadixClientKey};
+
 use super::*;
 
 use std::sync::Arc;
 
-pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mut Vec<Ciphertext>, encrypted_round_keys: &Vec<Vec<Ciphertext>>){
+pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
 
     let rounds = 2;
     let state_size = 128; // AES works on 128-bit blocks
     let bytes_per_state = state_size / 8;
 
-    add_round_key(sks,  encrypted_message_bits, &encrypted_round_keys[0]);
+    add_round_key(sks,  state, &encrypted_round_keys[0]);
 
     for round in 1..rounds {
-        
-        for byte_start in (0..bytes_per_state).map(|i| i * 8) {
-            sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
-        }
 
-        // encrypted_message_bits
+        let start = std::time::Instant::now();
+        
+        for byte_ct in state.iter_mut() {
+            sbox(cks, sks, wopbs_key, byte_ct);
+        }
+        println!("Sbox: {:?}", start.elapsed());
+
+        // state
         // .par_chunks_mut(8)
         // .for_each(|chunk| {
         //     sbox(cks, sks, chunk); 
@@ -26,7 +31,7 @@ pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mu
 
         
 
-        // shift_rows(encrypted_message_bits);
+        // shift_rows(state);
 
   
         // let mut new_state: Vec<Ciphertext> = Vec::with_capacity(128);
@@ -34,45 +39,45 @@ pub fn AES_encrypt(cks: &ClientKey, sks: &ServerKey, encrypted_message_bits: &mu
         //     let mut column: Vec<Ciphertext> = Vec::with_capacity(32);
         //     for row in 0..4 {
         //         let index = row * 32 + col * 8;
-        //         column.extend_from_slice(&encrypted_message_bits[index..index + 8]);
+        //         column.extend_from_slice(&state[index..index + 8]);
         //     }
         //     let mixed_column = mix_columns(sks, &column);
         //     new_state.extend_from_slice(&mixed_column);
         // }
 
 
-        // encrypted_message_bits.clear();
-        // encrypted_message_bits.extend_from_slice(&new_state);
+        // state.clear();
+        // state.extend_from_slice(&new_state);
 
 
       
-        // add_round_key(sks, encrypted_message_bits, &encrypted_round_keys[round]);
+        // add_round_key(sks, state, &encrypted_round_keys[round]);
     }
 
     
     // for byte_start in (0..bytes_per_state).map(|i| i * 8) {
-    //     sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
+    //     sbox(cks, sks, &mut state[byte_start..byte_start + 8]);
     // }
 
-    // let encrypted_message_bits_mutex = Mutex::new(encrypted_message_bits.clone());
+    // let state_mutex = Mutex::new(state.clone());
     //     (0..bytes_per_state).into_par_iter().for_each(|i| {
     //         let byte_start = i * 8;
-    //         let mut encrypted_message_bits = encrypted_message_bits_mutex.lock().unwrap();
-    //         sbox(cks, sks, &mut encrypted_message_bits[byte_start..byte_start + 8]);
+    //         let mut state = state_mutex.lock().unwrap();
+    //         sbox(cks, sks, &mut state[byte_start..byte_start + 8]);
     //     });
-    // *encrypted_message_bits = encrypted_message_bits_mutex.into_inner().unwrap();
+    // *state = state_mutex.into_inner().unwrap();
 
 
-    // shift_rows(encrypted_message_bits);
-    // add_round_key(sks, encrypted_message_bits, &encrypted_round_keys[rounds]);
+    // shift_rows(state);
+    // add_round_key(sks, state, &encrypted_round_keys[rounds]);
 }
 
 
 
 
-fn add_round_key(sks: &ServerKey, state: &mut Vec<Ciphertext>, round_key: &Vec<Ciphertext>) {
-    for (state_bit, key_bit) in state.iter_mut().zip(round_key.iter()) {
-        sks.unchecked_add_assign(state_bit, key_bit);
+fn add_round_key(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, round_key: &Vec<BaseRadixCiphertext<Ciphertext>>) {
+    for (state_byte, round_key_byte) in state.iter_mut().zip(round_key.iter()) {
+        sks.unchecked_add_assign(state_byte, round_key_byte);
     }
 }
 

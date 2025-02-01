@@ -1,17 +1,15 @@
-
-
-use tfhe::shortint::parameters::{gaussian::p_fail_2_minus_64::ks_pbs::PARAM_MESSAGE_4_CARRY_0_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, p_fail_2_minus_64::ks_pbs::PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS};
+use tfhe::integer::{RadixClientKey, ServerKey};
 
 use super::*;
 
 
 
-pub fn client_init() -> (ClientKey, ServerKey, Vec<Vec<Ciphertext>>, Vec<Ciphertext>) {
+pub fn client_init() -> (RadixClientKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<Vec<BaseRadixCiphertext<Ciphertext>>>) {
    
-    // let (cks, sks) = gen_keys(PARAM_MULTI_BIT_GROUP_3_MESSAGE_4_CARRY_0_KS_PBS_GAUSSIAN_2M64);
-    let (cks, sks) = gen_keys(PARAM_MESSAGE_4_CARRY_0_COMPACT_PK_KS_PBS_GAUSSIAN_2M64);
+    let nb_block = 8;
+    let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
 
-    
+    let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
     
 
     
@@ -22,33 +20,33 @@ pub fn client_init() -> (ClientKey, ServerKey, Vec<Vec<Ciphertext>>, Vec<Ciphert
     let message: u128 = 0x00000101030307070f0f1f1f3f3f7f7f;
     let key = 0;
     
-    let round_keys = AES_key_expansion(key);
+    let round_keys = aes_key_expansion(key);
 
     for (i, round_key) in round_keys.iter().enumerate() {
         println!("Round {}: {:032x}", i, round_key);
     }
 
-    let message_bits: Vec<bool> = (0..128)
-    .rev() // Iterate in reverse order: MSB to LSB
-    .map(|i| (message >> i) & 1 == 1)
-    .collect();
+    let mut encrypted_bytes: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
 
-    let encrypted_message_bits: Vec<Ciphertext> = message_bits
-        .iter()
-        .map(|&b| cks.encrypt(b as u64))
-        .collect();
+    for byte_idx in (0..16).rev() { // 128 bits / 8 bits = 16 bytes
+        let byte = (message >> (byte_idx * 8)) & 0xFF; // Extract 8 bits
+        encrypted_bytes.push(cks.encrypt_without_padding(byte as u64));
+    }
 
-    let encrypted_round_keys: Vec<Vec<Ciphertext>> = round_keys
+    let encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = round_keys
     .iter()
     .map(|&round_key| {
-        (0..128)
-            .map(|i| (round_key >> i) & 1 == 1)
-            .map(|b| cks.encrypt(b as u64))
+        (0..16) // 128 bits divided into 16 bytes
+            .rev() // Process from MSB to LSB
+            .map(|byte_idx| {
+                let byte = (round_key >> (byte_idx * 8)) & 0xFF; // Extract 8-bit chunk
+                cks.encrypt_without_padding(byte as u64) // Encrypt as a single 8-bit integer
+            })
             .collect()
     })
     .collect();
 
-    (cks, sks, encrypted_round_keys, encrypted_message_bits)
+    (cks, sks, wopbs_key, encrypted_bytes, encrypted_round_keys)
 }
 
 
@@ -69,7 +67,7 @@ fn rot_word(word: u32) -> u32 {
     (word << 8) | (word >> 24)
 }
 
-pub fn AES_key_expansion(key: u128) -> Vec<u128> {
+pub fn aes_key_expansion(key: u128) -> Vec<u128> {
     let nk = 4; // Number of 32-bit words in the key for AES-128
     let nb = 4; // Number of columns in the state
     let nr = 10; // Number of rounds for AES-128

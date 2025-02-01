@@ -1,77 +1,25 @@
-use std::{collections::HashMap};
+mod client;
+mod server;
+mod tables;
+
+use client::client_init;
+use server::AES_encrypt;
+
 use tfhe::{
     integer::{
         gen_keys_radix, wopbs::*,
     },
-    shortint::parameters::{
-        parameters_wopbs_message_carry::WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_MESSAGE_2_CARRY_0_KS_PBS, PARAM_MESSAGE_2_CARRY_2_KS_PBS, WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_5_CARRY_0_KS_PBS, WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_8_CARRY_0_KS_PBS, WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_1_KS_PBS, WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_3_CARRY_0_KS_PBS, WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_4_CARRY_0_KS_PBS, WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_2_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, WOPBS_PARAM_MESSAGE_2_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_2_CARRY_1_KS_PBS, WOPBS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, WOPBS_PARAM_MESSAGE_2_CARRY_4_KS_PBS, WOPBS_PARAM_MESSAGE_3_CARRY_0_KS_PBS, WOPBS_PARAM_MESSAGE_3_CARRY_1_KS_PBS, WOPBS_PARAM_MESSAGE_3_CARRY_2_KS_PBS, WOPBS_PARAM_MESSAGE_3_CARRY_3_KS_PBS, WOPBS_PARAM_MESSAGE_4_CARRY_0_KS_PBS
-    },
+    shortint::parameters::WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS,
 };
+
 use tfhe::integer::*;
 use tfhe::shortint::*;
 
 use tfhe::shortint::prelude::*;
 use tfhe::shortint::parameters::DynamicDistribution;
 
-mod tables;
-use tables::table::SBOX;
 
-pub const khar: WopbsParameters = WopbsParameters {
-    lwe_dimension: LweDimension(589),
-    glwe_dimension: GlweDimension(2),
-    polynomial_size: PolynomialSize(1024),
-    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-        0.00015133150634020836,
-    )),
-    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-        3.162026630747649e-16,
-    )),
-    pbs_base_log: DecompositionBaseLog(15),
-    pbs_level: DecompositionLevelCount(2),
-    ks_level: DecompositionLevelCount(5),
-    ks_base_log: DecompositionBaseLog(2),
-    pfks_level: DecompositionLevelCount(1),
-    pfks_base_log: DecompositionBaseLog(25),
-    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-        3.162026630747649e-16,
-    )),
-    cbs_level: DecompositionLevelCount(2),
-    cbs_base_log: DecompositionBaseLog(7),
-    message_modulus: MessageModulus(4),
-    carry_modulus: CarryModulus(4),
-    ciphertext_modulus: CiphertextModulus::new_native(),
-    encryption_key_choice: EncryptionKeyChoice::Big,
-};
-
-pub const sag: WopbsParameters = WopbsParameters {
-    lwe_dimension: LweDimension(637),
-    glwe_dimension: GlweDimension(4),
-    polynomial_size: PolynomialSize(512),
-    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-        6.27510880527384e-05,
-    )),
-    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-        3.162026630747649e-16,
-    )),
-    pbs_base_log: DecompositionBaseLog(16),
-    pbs_level: DecompositionLevelCount(2),
-    ks_level: DecompositionLevelCount(6),
-    ks_base_log: DecompositionBaseLog(2),
-    pfks_level: DecompositionLevelCount(2),
-    pfks_base_log: DecompositionBaseLog(17),
-    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-        3.162026630747649e-16,
-    )),
-    cbs_level: DecompositionLevelCount(1),
-    cbs_base_log: DecompositionBaseLog(11),
-    message_modulus: MessageModulus(2),
-    carry_modulus: CarryModulus(1),
-    ciphertext_modulus: CiphertextModulus::new_native(),
-    encryption_key_choice: EncryptionKeyChoice::Big,
-};
-
-
-fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT
+fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT 
     where
         F: Fn(u64) -> u64,
         T: IntegerCiphertext,
@@ -112,10 +60,35 @@ fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T,
 
 
 fn main() {
+    // let (cks, sks, wopbs_key, encrypted_round_keys, mut state ) = client_init();
+    let (cks, sks, wopbs_key, mut state, encrypted_round_keys) = client_init();
+    
+    // rayon::broadcast(|_| set_server_key(sks.clone()));
+    // set_server_key(sks);
 
+    let start = std::time::Instant::now();
+
+    AES_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
+
+
+    let mut message = 0;
+    let num_bytes = state.len();
+
+    for (i, state_byte) in state.iter().enumerate() {
+        let decrypted_byte: u128 = cks.decrypt_without_padding(state_byte); // Decrypt as an 8-bit integer
+        let position = (num_bytes - 1 - i) * 8; // Compute bit position from MSB
+        message |= (decrypted_byte as u128) << position; // Store in the correct position
+    }
+    
+    println!("Message: {:032x}", message);
+}
+
+
+fn test(){
     let nb_block = 8;
     let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
-    // let (cks, sks) = gen_keys_radix(WOPBS_PARAM_MESSAGE_3_CARRY_1_KS_PBS, nb_block);
+
+    let (cks_s, sks_s) = gen_keys(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS);
 
 
 
@@ -145,8 +118,13 @@ fn main() {
     
 
 
-    // let mut blocks: &mut [tfhe::shortint::Ciphertext] = ct.blocks_mut();
-    // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
+    let mut blocks: &mut [tfhe::shortint::Ciphertext] = ct.blocks_mut();
+    let scal_s = cks_s.encrypt_without_padding(1 as u64);
+
+    let mut scal = cks.encrypt_without_padding(1 as u64);
+    let mut blocks_s = scal.blocks_mut();
+    
+    sks_s.unchecked_add_assign(&mut blocks[0], &blocks_s[0]);
     // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
     // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
     // sks_s.unchecked_scalar_add_assign(&mut blocks[0], 1);
@@ -180,5 +158,4 @@ fn main() {
     println!("Result: {}", res);
 
     // assert_eq!(res, (clear * 2) % moduli)
-
 }
