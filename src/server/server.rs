@@ -10,6 +10,8 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
     let state_size = 128; // AES works on 128-bit blocks
     let bytes_per_state = state_size / 8;
 
+    let zero = cks.encrypt_without_padding(0 as u64);
+
     add_round_key(sks,  state, &encrypted_round_keys[0]);
 
     for round in 1..rounds {
@@ -21,7 +23,7 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
         // }
 
         state.par_iter_mut().for_each(|byte_ct| {
-            sbox(&wopbs_key, byte_ct);
+            sbox(wopbs_key, byte_ct);
         });
 
         
@@ -33,42 +35,18 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
         shift_rows(state);
 
   
-        // let mut new_state: Vec<Ciphertext> = Vec::with_capacity(128);
-        // for col in 0..4 {
-        //     let mut column: Vec<Ciphertext> = Vec::with_capacity(32);
-        //     for row in 0..4 {
-        //         let index = row * 32 + col * 8;
-        //         column.extend_from_slice(&state[index..index + 8]);
-        //     }
-        //     let mixed_column = mix_columns(sks, &column);
-        //     new_state.extend_from_slice(&mixed_column);
-        // }
-
-
-        // state.clear();
-        // state.extend_from_slice(&new_state);
-
+        mix_columns(sks, state, &zero);
 
       
-        // add_round_key(sks, state, &encrypted_round_keys[round]);
+        add_round_key(sks, state, &encrypted_round_keys[round]);
 
         println!("Total: {:?}", start.elapsed());
     }
 
     
-    // for byte_start in (0..bytes_per_state).map(|i| i * 8) {
-    //     sbox(cks, sks, &mut state[byte_start..byte_start + 8]);
-    // }
-
-    // let state_mutex = Mutex::new(state.clone());
-    //     (0..bytes_per_state).into_par_iter().for_each(|i| {
-    //         let byte_start = i * 8;
-    //         let mut state = state_mutex.lock().unwrap();
-    //         sbox(cks, sks, &mut state[byte_start..byte_start + 8]);
-    //     });
-    // *state = state_mutex.into_inner().unwrap();
-
-
+    // state.par_iter_mut().for_each(|byte_ct| {
+    //     sbox(&wopbs_key, byte_ct);
+    // });
     // shift_rows(state);
     // add_round_key(sks, state, &encrypted_round_keys[rounds]);
 }
