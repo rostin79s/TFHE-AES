@@ -24,13 +24,13 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
             sbox(&wopbs_key, byte_ct);
         });
 
-        println!("Sbox: {:?}", start.elapsed());
+        
 
 
 
         
 
-        // shift_rows(state);
+        shift_rows(state);
 
   
         // let mut new_state: Vec<Ciphertext> = Vec::with_capacity(128);
@@ -51,6 +51,8 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
 
       
         // add_round_key(sks, state, &encrypted_round_keys[round]);
+
+        println!("Total: {:?}", start.elapsed());
     }
 
     
@@ -80,21 +82,21 @@ fn add_round_key(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext
     }
 }
 
-fn shift_rows(state: &mut Vec<Ciphertext>) {
-    assert!(state.len() == 128, "State must have exactly 128 ciphertexts (16 bytes).");
+fn shift_rows(state: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
+    assert!(state.len() == 16, "State must have exactly 16 ciphertexts (16 bytes).");
 
-    // Helper function to rotate a row of ciphertexts to the left by `shift` positions.
-    fn rotate_left(row: &mut [Ciphertext], shift: usize) {
-        let len = row.len();
-        row.rotate_left(shift % len);
-    }
+    // Row 2: Shift left by 1
+    state.swap(1, 5);
+    state.swap(5, 9);
+    state.swap(9, 13);
 
-    // Perform the ShiftRows transformation
-    for row in 0..4 {
-        // Each row corresponds to 4 bytes, which are 32 bits in the flattened state
-        let start = row * 32; // Start index of the row
-        let end = start + 32; // End index of the row
-        let shift = row; // Row 0: 0 shift, Row 1: 1 shift, etc.
-        rotate_left(&mut state[start..end], shift * 8); // Rotate left by (shift * 8) bits
-    }
+    // Row 3: Shift left by 2
+    state.swap(2, 10);
+    state.swap(6, 14);
+
+    // Row 4: Shift left by 3
+    state.swap(3, 15);
+    state.swap(15, 11);
+    state.swap(11, 7);
 }
+
