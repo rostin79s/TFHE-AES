@@ -16,16 +16,15 @@ pub fn AES_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
 
         let start = std::time::Instant::now();
         
-        for byte_ct in state.iter_mut() {
-            sbox(cks, sks, wopbs_key, byte_ct);
-        }
-        println!("Sbox: {:?}", start.elapsed());
+        // for byte_ct in state.iter_mut() {
+        //     sbox(cks, sks, wopbs_key, byte_ct);
+        // }
 
-        // state
-        // .par_chunks_mut(8)
-        // .for_each(|chunk| {
-        //     sbox(cks, sks, chunk); 
-        // });
+        state.par_iter_mut().for_each(|byte_ct| {
+            sbox(&wopbs_key, byte_ct);
+        });
+
+        println!("Sbox: {:?}", start.elapsed());
 
 
 
