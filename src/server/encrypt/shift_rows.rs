@@ -1,5 +1,5 @@
 use tfhe::shortint::Ciphertext;
-use tfhe::integer::{wopbs::WopbsKey, ServerKey, RadixClientKey, ciphertext::BaseRadixCiphertext};
+use tfhe::integer::ciphertext::BaseRadixCiphertext;
 
 pub fn shift_rows(state: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
     assert!(state.len() == 16, "State must have exactly 16 ciphertexts (16 bytes).");

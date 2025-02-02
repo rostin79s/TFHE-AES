@@ -4,7 +4,7 @@ use super::*;
 
 use aes::Aes128;
 use aes::cipher::{
-    BlockCipher, BlockEncrypt, BlockDecrypt, KeyInit,
+    BlockEncrypt, KeyInit,
     generic_array::GenericArray,
 };
 

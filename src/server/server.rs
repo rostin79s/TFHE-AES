@@ -14,8 +14,6 @@ use crate::server::decrypt::inv_shift_rows;
 pub fn aes_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
 
     let rounds = 10;
-    let state_size = 128; // AES works on 128-bit blocks
-    let bytes_per_state = state_size / 8;
 
     let zero = cks.encrypt_without_padding(0 as u64);
 
@@ -33,18 +31,8 @@ pub fn aes_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
             sbox(wopbs_key, byte_ct, false);
         });
 
-        
-
-
-
-        
-
         shift_rows(state);
-
-  
         mix_columns(sks, state, &zero);
-
-      
         add_round_key(sks, state, &encrypted_round_keys[round]);
 
         // println!("Total: {:?}", start.elapsed());
