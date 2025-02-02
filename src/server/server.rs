@@ -68,23 +68,23 @@ pub fn aes_decrypt(cks: &RadixClientKey , sks: &ServerKey, wopbs_key: &WopbsKey,
     let zero = cks.encrypt_without_padding(0 as u64);
 
 
-    for round in (1..rounds).rev() {
-        // Inverse shift rows
+    for round in (2..=rounds).rev() {
+
         inv_shift_rows(state);
 
-        // Inverse S-box
+ 
         state.par_iter_mut().for_each(|byte_ct| {
             sbox(wopbs_key, byte_ct, true);
         });
 
-        // Add round key
-        add_round_key(sks, state, &encrypted_round_keys[round]);
 
-        // Inverse mix columns
+        add_round_key(sks, state, &encrypted_round_keys[round-1]);
+
+       
         inv_mix_columns(sks, state, &zero);
     }
 
-    // Final round (no inverse mix columns)
+
     inv_shift_rows(state);
     state.par_iter_mut().for_each(|byte_ct| {
         sbox(wopbs_key, byte_ct, true);

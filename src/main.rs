@@ -18,47 +18,6 @@ use tfhe::shortint::*;
 // use tfhe::shortint::prelude::*;
 // use tfhe::shortint::parameters::DynamicDistribution;
 
-
-fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT 
-    where
-        F: Fn(u64) -> u64,
-        T: IntegerCiphertext,
-    {
-        let log_message_modulus =
-            f64::log2((message_mod) as f64) as u64;
-        let log_carry_modulus = f64::log2((carry_mod) as f64) as u64;
-        let log_basis = log_message_modulus + log_carry_modulus;
-        let delta = 64 - log_basis;
-        let nb_block = ct.blocks().len();
-        let poly_size = poly_size;
-        let mut lut_size = 1 << (nb_block * log_basis as usize);
-        if lut_size < poly_size {
-            lut_size = poly_size;
-        }
-        let mut lut = IntegerWopbsLUT::new(PlaintextCount(lut_size), CiphertextCount(nb_block));
-
-        for index in 0..lut_size {
-            // find the value represented by the index
-            let mut value = 0;
-            let mut tmp_index = index;
-            for i in 0..nb_block as u64 {
-                let tmp = tmp_index % (1 << log_basis); // Extract only the relevant block
-                tmp_index >>= log_basis; // Move to the next block
-                value += tmp << (log_message_modulus * i); // Properly reconstruct `value`
-            }
-
-            // fill the LUTs
-            for block_index in 0..nb_block {
-                let masked_value = (f(value as u64) >> (log_message_modulus * block_index as u64))
-                    % (1 << log_message_modulus);  // Mask the value using the message modulus
-            
-                lut[block_index][index] = masked_value << delta;  // Apply delta to the LUT entry
-            }
-        }
-        lut
-    }
-
-
 fn main() {
     
     let client = Client::new();
@@ -70,13 +29,30 @@ fn main() {
     aes_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
 
     let elapsed = start.elapsed();
-    println!("Time taken: {:?}", elapsed);
+    println!("Time taken for aes encryption: {:?}", elapsed);
 
-    let mut new_state = state.clone();
+    let mut fhe_decrypted_state = state.clone();
 
-    aes_decrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut new_state);
+    let start = std::time::Instant::now();
 
-    client.client_decrypt_and_verify(&state);
+    aes_decrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut fhe_decrypted_state);
+
+    let elapsed = start.elapsed();
+    println!("Time taken for aes decryption: {:?}", elapsed);
+
+    client.client_decrypt_and_verify(state, fhe_decrypted_state);
+
+    // let mut message = 0;
+    // let num_bytes = fhe_decrypted_state.len();
+
+    // for (i, state_byte) in fhe_decrypted_state.iter().enumerate() {
+    //     let decrypted_byte: u128 = cks.decrypt_without_padding(state_byte); // Decrypt as an 8-bit integer
+    //     let position = (num_bytes - 1 - i) * 8; // Compute bit position from MSB
+    //     message |= (decrypted_byte as u128) << position; // Store in the correct position
+    // }
+
+    // println!("Message: {:032x}", message);
+
 }
 
 
@@ -155,3 +131,44 @@ fn test(){
 
     // assert_eq!(res, (clear * 2) % moduli)
 }
+
+
+fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT 
+    where
+        F: Fn(u64) -> u64,
+        T: IntegerCiphertext,
+    {
+        let log_message_modulus =
+            f64::log2((message_mod) as f64) as u64;
+        let log_carry_modulus = f64::log2((carry_mod) as f64) as u64;
+        let log_basis = log_message_modulus + log_carry_modulus;
+        let delta = 64 - log_basis;
+        let nb_block = ct.blocks().len();
+        let poly_size = poly_size;
+        let mut lut_size = 1 << (nb_block * log_basis as usize);
+        if lut_size < poly_size {
+            lut_size = poly_size;
+        }
+        let mut lut = IntegerWopbsLUT::new(PlaintextCount(lut_size), CiphertextCount(nb_block));
+
+        for index in 0..lut_size {
+            // find the value represented by the index
+            let mut value = 0;
+            let mut tmp_index = index;
+            for i in 0..nb_block as u64 {
+                let tmp = tmp_index % (1 << log_basis); // Extract only the relevant block
+                tmp_index >>= log_basis; // Move to the next block
+                value += tmp << (log_message_modulus * i); // Properly reconstruct `value`
+            }
+
+            // fill the LUTs
+            for block_index in 0..nb_block {
+                let masked_value = (f(value as u64) >> (log_message_modulus * block_index as u64))
+                    % (1 << log_message_modulus);  // Mask the value using the message modulus
+            
+                lut[block_index][index] = masked_value << delta;  // Apply delta to the LUT entry
+            }
+        }
+        lut
+    }
+

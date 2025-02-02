@@ -24,9 +24,13 @@ impl Client {
 
         let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
 
-        // Initialize message and key
+        
         let message: u128 = 0x00112233445566778899aabbccddeeff;
         let key: u128 = 0x000102030405060708090a0b0c0d0e0f;
+
+
+        // let message: u128 = 0x00000101030307070f0f1f1f3f3f7f7f;
+        // let key: u128 = 0;
 
         Client {
             cks,
@@ -70,19 +74,19 @@ impl Client {
     }
 
     pub fn client_decrypt_and_verify(&self,
-        state: &Vec<BaseRadixCiphertext<Ciphertext>>,
+        fhe_encrypted_state: Vec<BaseRadixCiphertext<Ciphertext>>, fhe_decrypted_state: Vec<BaseRadixCiphertext<Ciphertext>>
     ) {
         // Decrypt the message
-        let mut decrypted_bytes: Vec<u8> = Vec::new();
-        for byte_ct in state.iter() {
-            let decrypted_byte: u128 = self.cks.decrypt_without_padding(byte_ct);
-            decrypted_bytes.push(decrypted_byte as u8);
+        let mut encrypted_message_bytes: Vec<u8> = Vec::new();
+        for fhe_encrypted_byte in fhe_encrypted_state.iter() {
+            let encrypted_byte: u128 = self.cks.decrypt_without_padding(fhe_encrypted_byte);
+            encrypted_message_bytes.push(encrypted_byte as u8);
         }
     
         // Convert decrypted bytes to u128
-        let mut fhe_decrypted_message: u128 = 0;
-        for (i, &byte) in decrypted_bytes.iter().enumerate() {
-            fhe_decrypted_message |= (byte as u128) << ((15 - i) * 8);
+        let mut encrypted_message: u128 = 0;
+        for (i, &byte) in encrypted_message_bytes.iter().enumerate() {
+            encrypted_message |= (byte as u128) << ((15 - i) * 8);
         }
 
         
@@ -93,15 +97,33 @@ impl Client {
         let cipher = Aes128::new(GenericArray::from_slice(&key_bytes));
         cipher.encrypt_block(GenericArray::from_mut_slice(&mut message_bytes));
     
-        let encrypted_message = u128::from_be_bytes(message_bytes);
-        println!("Encrypted message: {:032x}", encrypted_message);
+        let clear_encrypted_message = u128::from_be_bytes(message_bytes);
     
         // Verify the decrypted message
-        if fhe_decrypted_message == encrypted_message {
-            println!("Decryption successful! Decrypted message: {:032x}", fhe_decrypted_message);
+        if encrypted_message == clear_encrypted_message {
+            println!("FHE encryption successfull. Encrypted message generated: {:032x}", encrypted_message);
         } else {
-            println!("Decryption failed. Decrypted message: {:032x}", fhe_decrypted_message);
+            println!("Fhe encryption failed. Encrypted message generated: {:032x}", encrypted_message);
         }
+
+        let mut decrypted_message_bytes: Vec<u8> = Vec::new();
+        for fhe_decrypted_byte in fhe_decrypted_state.iter() {
+            let byte: u128 = self.cks.decrypt_without_padding(fhe_decrypted_byte);
+            decrypted_message_bytes.push(byte as u8);
+        }
+
+        let mut decrypted_message: u128 = 0;
+        for (i, &byte) in decrypted_message_bytes.iter().enumerate() {
+            decrypted_message |= (byte as u128) << ((15 - i) * 8);
+        }
+
+        if decrypted_message == self.message {
+            println!("FHE decryption successfull. Decrypted message: {:032x}", decrypted_message);
+        } else {
+            println!("Fhe decryption failed. Decrypted message: {:032x}", decrypted_message);
+        }
+
+        
     }
 
 }
@@ -129,7 +151,7 @@ fn rot_word(word: u32) -> u32 {
 
 pub fn aes_key_expansion(key: u128) -> Vec<u128> {
     let nk = 4; // Number of 32-bit words in the key for AES-128
-    let nb = 4; // Number of columns in the state
+    let nb = 4; // Number of columns in the fhe_encrypted_state
     let nr = 10; // Number of rounds for AES-128
     let mut w = vec![0u32; nb * (nr + 1)]; // Word array to hold expanded keys
 
@@ -158,8 +180,4 @@ pub fn aes_key_expansion(key: u128) -> Vec<u128> {
 
     round_keys
 }
-
-// pub fn encrypted_aes_key_expansion(cks: &ClientKey, encrypted_key_bits: &Vec<Ciphertext>) -> Vec<Vec<Ciphertext>> {
-    
-// }
 
