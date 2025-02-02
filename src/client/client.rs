@@ -2,52 +2,112 @@ use tfhe::integer::{RadixClientKey, ServerKey};
 
 use super::*;
 
+use aes::Aes128;
+use aes::cipher::{
+    BlockCipher, BlockEncrypt, BlockDecrypt, KeyInit,
+    generic_array::GenericArray,
+};
 
-
-pub fn client_init() -> (RadixClientKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<Vec<BaseRadixCiphertext<Ciphertext>>>) {
-   
-    let nb_block = 8;
-    let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
-
-    let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
-    
-
-    
-    // let mut rng = rand::thread_rng();
-    // let message: u128 = rng.gen(); // Random 128-bit message
-    // let key: u128 = rng.gen();     // Random 128-bit cryptographic key (NOT SECURE)
-
-    let message: u128 = 0x00000101030307070f0f1f1f3f3f7f7f;
-    let key = 0;
-    
-    let round_keys = aes_key_expansion(key);
-
-    for (i, round_key) in round_keys.iter().enumerate() {
-        println!("Round {}: {:032x}", i, round_key);
-    }
-
-    let mut encrypted_bytes: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
-
-    for byte_idx in (0..16).rev() { // 128 bits / 8 bits = 16 bytes
-        let byte = (message >> (byte_idx * 8)) & 0xFF; // Extract 8 bits
-        encrypted_bytes.push(cks.encrypt_without_padding(byte as u64));
-    }
-
-    let encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = round_keys
-    .iter()
-    .map(|&round_key| {
-        (0..16) // 128 bits divided into 16 bytes
-            .rev() // Process from MSB to LSB
-            .map(|byte_idx| {
-                let byte = (round_key >> (byte_idx * 8)) & 0xFF; // Extract 8-bit chunk
-                cks.encrypt_without_padding(byte as u64) // Encrypt as a single 8-bit integer
-            })
-            .collect()
-    })
-    .collect();
-
-    (cks, sks, wopbs_key, encrypted_bytes, encrypted_round_keys)
+pub struct Client {
+    cks: RadixClientKey,
+    sks: ServerKey,
+    wopbs_key: WopbsKey,
+    message: u128,
+    key: u128,
 }
+
+impl Client {
+    pub fn new() -> Self {
+        // Initialize FHE keys
+        let nb_block = 8;
+        let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+
+        let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
+
+        // Initialize message and key
+        let message: u128 = 0x00112233445566778899aabbccddeeff;
+        let key: u128 = 0x000102030405060708090a0b0c0d0e0f;
+
+        Client {
+            cks,
+            sks,
+            wopbs_key,
+            message,
+            key,
+        }
+    }
+
+    pub fn client_encrypt(&self) -> (RadixClientKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<Vec<BaseRadixCiphertext<Ciphertext>>>) {
+
+    
+        let round_keys = aes_key_expansion(self.key);
+    
+        // for (i, round_key) in round_keys.iter().enumerate() {
+        //     println!("Round {}: {:032x}", i, round_key);
+        // }
+    
+        let mut encrypted_bytes: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
+    
+        for byte_idx in (0..16).rev() { // 128 bits / 8 bits = 16 bytes
+            let byte = (self.message >> (byte_idx * 8)) & 0xFF; // Extract 8 bits
+            encrypted_bytes.push(self.cks.encrypt_without_padding(byte as u64));
+        }
+    
+        let encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = round_keys
+        .iter()
+        .map(|&round_key| {
+            (0..16) // 128 bits divided into 16 bytes
+                .rev() // Process from MSB to LSB
+                .map(|byte_idx| {
+                    let byte = (round_key >> (byte_idx * 8)) & 0xFF; // Extract 8-bit chunk
+                    self.cks.encrypt_without_padding(byte as u64) // Encrypt as a single 8-bit integer
+                })
+                .collect()
+        })
+        .collect();
+    
+        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, encrypted_round_keys)
+    }
+
+    pub fn client_decrypt_and_verify(&self,
+        state: &Vec<BaseRadixCiphertext<Ciphertext>>,
+    ) {
+        // Decrypt the message
+        let mut decrypted_bytes: Vec<u8> = Vec::new();
+        for byte_ct in state.iter() {
+            let decrypted_byte: u128 = self.cks.decrypt_without_padding(byte_ct);
+            decrypted_bytes.push(decrypted_byte as u8);
+        }
+    
+        // Convert decrypted bytes to u128
+        let mut fhe_decrypted_message: u128 = 0;
+        for (i, &byte) in decrypted_bytes.iter().enumerate() {
+            fhe_decrypted_message |= (byte as u128) << ((15 - i) * 8);
+        }
+
+        
+        // Encrypt the message using AES for verification
+        let key_bytes = self.key.to_be_bytes();
+        let mut message_bytes = self.message.to_be_bytes();
+    
+        let cipher = Aes128::new(GenericArray::from_slice(&key_bytes));
+        cipher.encrypt_block(GenericArray::from_mut_slice(&mut message_bytes));
+    
+        let encrypted_message = u128::from_be_bytes(message_bytes);
+        println!("Encrypted message: {:032x}", encrypted_message);
+    
+        // Verify the decrypted message
+        if fhe_decrypted_message == encrypted_message {
+            println!("Decryption successful! Decrypted message: {:032x}", fhe_decrypted_message);
+        } else {
+            println!("Decryption failed. Decrypted message: {:032x}", fhe_decrypted_message);
+        }
+    }
+
+}
+
+
+
 
 
 const RCON: [u8; 10] = [

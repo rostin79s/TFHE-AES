@@ -2,7 +2,7 @@ mod client;
 mod server;
 mod tables;
 
-use client::client_init;
+use client::Client;
 use server::AES_encrypt;
 
 use tfhe::{
@@ -15,8 +15,8 @@ use tfhe::{
 use tfhe::integer::*;
 use tfhe::shortint::*;
 
-use tfhe::shortint::prelude::*;
-use tfhe::shortint::parameters::DynamicDistribution;
+// use tfhe::shortint::prelude::*;
+// use tfhe::shortint::parameters::DynamicDistribution;
 
 
 fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT 
@@ -60,11 +60,10 @@ fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T,
 
 
 fn main() {
-    // let (cks, sks, wopbs_key, encrypted_round_keys, mut state ) = client_init();
-    let (cks, sks, wopbs_key, mut state, encrypted_round_keys) = client_init();
     
-    // rayon::broadcast(|_| set_server_key(sks.clone()));
-    // set_server_key(sks);
+    let client = Client::new();
+
+    let (cks, sks, wopbs_key, mut state, encrypted_round_keys) = client.client_encrypt();
 
     let start = std::time::Instant::now();
 
@@ -73,17 +72,19 @@ fn main() {
     let elapsed = start.elapsed();
     println!("Time taken: {:?}", elapsed);
 
+    client.client_decrypt_and_verify(&state);
 
-    let mut message = 0;
-    let num_bytes = state.len();
 
-    for (i, state_byte) in state.iter().enumerate() {
-        let decrypted_byte: u128 = cks.decrypt_without_padding(state_byte); // Decrypt as an 8-bit integer
-        let position = (num_bytes - 1 - i) * 8; // Compute bit position from MSB
-        message |= (decrypted_byte as u128) << position; // Store in the correct position
-    }
+    // let mut message = 0;
+    // let num_bytes = state.len();
+
+    // for (i, state_byte) in state.iter().enumerate() {
+    //     let decrypted_byte: u128 = cks.decrypt_without_padding(state_byte); // Decrypt as an 8-bit integer
+    //     let position = (num_bytes - 1 - i) * 8; // Compute bit position from MSB
+    //     message |= (decrypted_byte as u128) << position; // Store in the correct position
+    // }
     
-    println!("Message: {:032x}", message);
+    // println!("Message: {:032x}", message);
 }
 
 
