@@ -1,9 +1,6 @@
-
-use tfhe::integer::{IntegerCiphertext, IntegerRadixCiphertext};
-use tfhe::shortint::gen_keys;
-use super::*;
-
-use tfhe::shortint::parameters::WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS;
+use tfhe::integer::IntegerCiphertext;
+use tfhe::shortint::Ciphertext;
+use tfhe::integer::{ServerKey, ciphertext::BaseRadixCiphertext};
 
 pub fn mix_columns(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, zero: &BaseRadixCiphertext<Ciphertext>) {
     assert!(state.len() == 16, "State must have exactly 16 ciphertexts (16 bytes).");

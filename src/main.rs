@@ -3,7 +3,7 @@ mod server;
 mod tables;
 
 use client::Client;
-use server::AES_encrypt;
+use server::server::{aes_encrypt, aes_decrypt};
 
 use tfhe::{
     integer::{
@@ -67,24 +67,16 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    AES_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
+    aes_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
 
     let elapsed = start.elapsed();
     println!("Time taken: {:?}", elapsed);
 
+    let mut new_state = state.clone();
+
+    aes_decrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut new_state);
+
     client.client_decrypt_and_verify(&state);
-
-
-    // let mut message = 0;
-    // let num_bytes = state.len();
-
-    // for (i, state_byte) in state.iter().enumerate() {
-    //     let decrypted_byte: u128 = cks.decrypt_without_padding(state_byte); // Decrypt as an 8-bit integer
-    //     let position = (num_bytes - 1 - i) * 8; // Compute bit position from MSB
-    //     message |= (decrypted_byte as u128) << position; // Store in the correct position
-    // }
-    
-    // println!("Message: {:032x}", message);
 }
 
 
