@@ -23,14 +23,17 @@ pub fn sbox(wopbs_key: &WopbsKey, x: &mut BaseRadixCiphertext<Ciphertext>, inv: 
         f = |x| SBOX[x as usize] as u64;
     }
 
-    // let start = std::time::Instant::now();
+    let start = std::time::Instant::now();
     
     let lut = gen_lut(message_mod, carry_mod, poly_size, x, f);
 
     let ct_res = wopbs_key.wopbs_without_padding(x, &lut);
+    // let ct_res2 = wopbs_key.wopbs_without_padding(x, &lut);
+    // let ct_res3 = wopbs_key.wopbs_without_padding(x, &lut);
+    
     *x = ct_res;
 
-    // println!("Sbox: {:?}", start.elapsed());
+    println!("Sbox: {:?}", start.elapsed());
 }
 
 
@@ -54,21 +57,19 @@ fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T,
         let mut lut = IntegerWopbsLUT::new(PlaintextCount(lut_size), CiphertextCount(nb_block));
 
         for index in 0..lut_size {
-            // find the value represented by the index
             let mut value = 0;
             let mut tmp_index = index;
             for i in 0..nb_block as u64 {
-                let tmp = tmp_index % (1 << log_basis); // Extract only the relevant block
-                tmp_index >>= log_basis; // Move to the next block
-                value += tmp << (log_message_modulus * i); // Properly reconstruct `value`
+                let tmp = tmp_index % (1 << log_basis);
+                tmp_index >>= log_basis;
+                value += tmp << (log_message_modulus * i);
             }
 
-            // fill the LUTs
             for block_index in 0..nb_block {
                 let masked_value = (f(value as u64) >> (log_message_modulus * block_index as u64))
-                    % (1 << log_message_modulus);  // Mask the value using the message modulus
+                    % (1 << log_message_modulus); 
             
-                lut[block_index][index] = masked_value << delta;  // Apply delta to the LUT entry
+                lut[block_index][index] = masked_value << delta; 
             }
         }
         lut

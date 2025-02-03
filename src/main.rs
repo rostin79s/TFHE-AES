@@ -13,23 +13,23 @@ fn main() {
 
     let (cks, sks, wopbs_key, mut state, encrypted_round_keys) = client.client_encrypt();
 
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
 
-    aes_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
+    // aes_encrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut state);
 
-    let elapsed = start.elapsed();
-    println!("Time taken for aes encryption: {:?}", elapsed);
+    // let elapsed = start.elapsed();
+    // println!("Time taken for aes encryption: {:?}", elapsed);
 
-    let mut fhe_decrypted_state = state.clone();
+    // let mut fhe_decrypted_state = state.clone();
 
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
 
-    aes_decrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut fhe_decrypted_state);
+    // aes_decrypt(&cks, &sks, &wopbs_key, &encrypted_round_keys, &mut fhe_decrypted_state);
 
-    let elapsed = start.elapsed();
-    println!("Time taken for aes decryption: {:?}", elapsed);
+    // let elapsed = start.elapsed();
+    // println!("Time taken for aes decryption: {:?}", elapsed);
 
-    client.client_decrypt_and_verify(state, fhe_decrypted_state);
+    // client.client_decrypt_and_verify(state, fhe_decrypted_state);
 
     // let mut message = 0;
     // let num_bytes = fhe_decrypted_state.len();

@@ -8,3 +8,6 @@ tfhe = { version = "0.7.4", features = ["boolean", "shortint", "integer", "x86_6
 rand = "0.8"
 aes = "0.8.4"
 rayon = "1.7"
+core_affinity = "0.8.1"
+crossbeam = "0.8.4"
+rayon-core = "1.12.1"

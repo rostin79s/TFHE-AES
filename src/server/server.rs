@@ -11,11 +11,14 @@ use crate::server::encrypt::shift_rows;
 use crate::server::decrypt::inv_mix_columns;
 use crate::server::decrypt::inv_shift_rows;
 
+use rayon::ThreadPoolBuilder;
+use core_affinity::CoreId;
+
 pub fn aes_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
 
     let rounds = 10;
 
-    let zero = cks.encrypt_without_padding(0 as u64);
+    let zero = cks.encrypt_without_padding(0 as u64); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????
 
     add_round_key(sks,  state, &encrypted_round_keys[0]);
 
