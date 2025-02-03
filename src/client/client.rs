@@ -64,15 +64,13 @@ impl Client {
         let length = _encrypted_round_keys.len();
         println!("Length: {:?}", length);
         
-        for (i, encrypted_round_key) in _encrypted_round_keys.chunks(4).enumerate() {
+        for (i, encrypted_round_key) in _encrypted_round_keys.iter().enumerate() {
             let mut decrypted_round_key: u128 = 0;
-            for (j, encrypted_word) in encrypted_round_key.iter().enumerate() {
-                for (k, encrypted_byte) in encrypted_word.iter().enumerate() {
-                    let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
-                    println!("Decrypted byte: {:?}", decrypted_byte);
-                    let position = (15 - (j * 4 + k)) * 8; // Compute bit position from MSB
-                    decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
-                }
+            for (j, encrypted_byte) in encrypted_round_key.iter().enumerate() {
+                let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
+                println!("Decrypted byte: {:?}", decrypted_byte);
+                let position = (15 - j) * 8; // Compute bit position from MSB
+                decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
             }
             println!("Round {}: {:032x}", i, decrypted_round_key);
             assert_eq!(decrypted_round_key, round_keys[i], "Round key mismatch at index {}", i);
@@ -244,7 +242,17 @@ pub fn key_expansion(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey
         w.push(new_word);
     }
 
-    w
+    // Combine every 4 words into a single round key
+    let mut round_keys = Vec::new();
+    for i in 0..=nr {
+        let mut round_key = Vec::new();
+        for j in 0..4 {
+            round_key.extend(w[i * 4 + j].clone());
+        }
+        round_keys.push(round_key);
+    }
+
+    round_keys
 }
 
 
