@@ -2,13 +2,17 @@ use tfhe::integer::{RadixClientKey, ServerKey};
 
 use super::*;
 
-use crate::server::sbox::sbox;
+use rayon::prelude::*;
+
+use crate::server::sbox::*;
 
 use aes::Aes128;
 use aes::cipher::{
     BlockEncrypt, KeyInit,
     generic_array::GenericArray,
 };
+
+use rand::Rng;
 
 pub struct Client {
     cks: RadixClientKey,
@@ -26,13 +30,20 @@ impl Client {
 
         let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
 
+        // let mut rng = rand::thread_rng();
+        // let message: u128 = rng.gen();
+        // let key: u128 = rng.gen();
         
-        // let message: u128 = 0x00112233445566778899aabbccddeeff;
-        // let key: u128 = 0x000102030405060708090a0b0c0d0e0f;
+        let message: u128 = 0x00112233445566778841aabbccddeeff;
+        let key: u128 = 0x000102030405230708090a0b0c0d0e0f;
 
 
-        let message: u128 = 0x00000101030307070f0f1f1f3f3f7f7f;
-        let key: u128 = 0;
+        // let message: u128 = 0x00000101030307070f0f1f1f3f3f7f7f;
+        // let key: u128 = 0;
+
+
+        // let key = 0x2b7e151628aed2a6abf7158809cf4f3c;
+        // let message = 0x6bc1bee22e409f96e93d7e117393172a;
 
         Client {
             cks,
@@ -59,22 +70,27 @@ impl Client {
             key_bytes.push(self.cks.encrypt_without_padding(byte as u64));
         }
 
+
+
+
+        let start = std::time::Instant::now();
+
         let _encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = key_expansion(&self.cks, &self.sks, &self.wopbs_key, &key_bytes);
 
-        let length = _encrypted_round_keys.len();
-        println!("Length: {:?}", length);
+        println!("Time taken for key expansion: {:?}", start.elapsed());
         
         for (i, encrypted_round_key) in _encrypted_round_keys.iter().enumerate() {
             let mut decrypted_round_key: u128 = 0;
             for (j, encrypted_byte) in encrypted_round_key.iter().enumerate() {
                 let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
-                println!("Decrypted byte: {:?}", decrypted_byte);
                 let position = (15 - j) * 8; // Compute bit position from MSB
                 decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
             }
-            println!("Round {}: {:032x}", i, decrypted_round_key);
+            // println!("Round {}: {:032x}", i, decrypted_round_key);
             assert_eq!(decrypted_round_key, round_keys[i], "Round key mismatch at index {}", i);
         }
+
+
         
 
     
@@ -98,7 +114,7 @@ impl Client {
         })
         .collect();
     
-        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, encrypted_round_keys)
+        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, _encrypted_round_keys)
     }
 
     pub fn client_decrypt_and_verify(&self,
@@ -186,16 +202,25 @@ fn fhe_rot_word(word: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<BaseRadixCip
 }
 
 fn fhe_sub_word(wopbs_key: &WopbsKey, word: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
-    for i in 0..4 {
-        sbox(wopbs_key, &mut word[i], false);
-    }
+    // for i in 0..4 {
+    //     sbox(wopbs_key, &mut word[i], false);
+    // }
+
+    word.par_iter_mut().for_each(|byte| {
+        sbox(wopbs_key, byte, false);
+    });
 }
 
 pub fn key_expansion(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, key: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<Vec<BaseRadixCiphertext<Ciphertext>>> {
     let nk = 4; // Number of 32-bit words in the key for AES-128
     let nb = 4; // Number of columns in the fhe_encrypted_state
-    let nr = 4; // Number of rounds for AES-128
+    let nr = 10; // Number of rounds for AES-128
     let mut w = Vec::new(); // Word array to hold expanded keys
+
+    let message_mod = 2;
+    let carry_mod = 1;
+    let poly_size = 512;
+    let f = |x| x as u64;
 
     // Copy the original key into the first `nk` words
     for i in 0..nk {
@@ -210,36 +235,23 @@ pub fn key_expansion(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey
         let mut temp = w[i - 1].clone();
         if i % nk == 0 {
             temp = fhe_rot_word(&temp);
-            // decrypt and print temp
-            for j in 0..4 {
-                let decrypted_byte: u64 = cks.decrypt_without_padding(&temp[j]);
-                println!("Decrypted byte after rotate: {:?}", decrypted_byte);
-            }
             fhe_sub_word(wopbs_key, &mut temp);
-            // decrypt and print temp
-            for j in 0..4 {
-                let decrypted_byte: u64 = cks.decrypt_without_padding(&temp[j]);
-                println!("Decrypted byte: {:?}", decrypted_byte);
-            }
             let rcon_byte= RCON[(i / nk) - 1] as u64;
-            println!("Rcon: {:?}", rcon_byte);
             let encrypted_rcon = cks.encrypt_without_padding(rcon_byte as u64);
             temp[0] = sks.unchecked_add(&temp[0], &encrypted_rcon);
-            // decrypt and print temp
-            for j in 0..4 {
-                let decrypted_byte: u64 = cks.decrypt_without_padding(&temp[j]);
-                println!("Decrypted byte after rcon: {:?}", decrypted_byte);
-            }
         }
-        let mut new_word = Vec::new();
+        let mut new_words = Vec::new();
+
         for j in 0..4 {
-            let sag = sks.unchecked_add(&w[i - nk][j], &temp[j]);
-            // print sag
-            let decrypted_byte: u64 = cks.decrypt_without_padding(&sag);
-            println!("Decrypted byte after add: {:?}", decrypted_byte);
-            new_word.push(sag);
+            let lut = gen_lut(message_mod, carry_mod, poly_size, &w[i - nk][j], f);
+            let refresh_ct = wopbs_key.wopbs_without_padding(&w[i - nk][j], &lut);
+            w[i - nk][j] = refresh_ct;
+
+
+            let new_word = sks.unchecked_add(&w[i - nk][j], &temp[j]);
+            new_words.push(new_word);
         }
-        w.push(new_word);
+        w.push(new_words);
     }
 
     // Combine every 4 words into a single round key
@@ -259,7 +271,7 @@ pub fn key_expansion(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey
 pub fn aes_key_expansion(key: u128) -> Vec<u128> {
     let nk = 4; // Number of 32-bit words in the key for AES-128
     let nb = 4; // Number of columns in the fhe_encrypted_state
-    let nr = 4; // Number of rounds for AES-128
+    let nr = 10; // Number of rounds for AES-128
     let mut w = vec![0u32; nb * (nr + 1)]; // Word array to hold expanded keys
 
     // Copy the original key into the first `nk` words
