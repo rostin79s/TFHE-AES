@@ -11,6 +11,8 @@ fn main() {
 
     // test();
 
+    loop {
+
     
     let client = Client::new();
 
@@ -32,7 +34,11 @@ fn main() {
     let elapsed = start.elapsed();
     println!("Time taken for aes decryption: {:?}", elapsed);
 
-    client.client_decrypt_and_verify(state, fhe_decrypted_state);
+    let b = client.client_decrypt_and_verify(state, fhe_decrypted_state);
+
+    if !b {
+        break;
+    }
 
     // let mut message = 0;
     // let num_bytes = fhe_decrypted_state.len();
@@ -45,13 +51,15 @@ fn main() {
 
     // println!("Message: {:032x}", message);
 
+    }
+
 }
 
 use tfhe::{
     integer::{
-        backward_compatibility::wopbs, gen_keys_radix, wopbs::*
+        gen_keys_radix, wopbs::*
     },
-    shortint::parameters::WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS,
+    shortint::parameters::LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS,
 };
 
 use tfhe::integer::*;
@@ -64,9 +72,9 @@ use tfhe::shortint::parameters::NoiseLevel;
 
 fn test(){
     let nb_block = 8;
-    let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+    let (cks, sks) = gen_keys_radix(LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
 
-    let (cks_s, sks_s) = gen_keys(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS);
+    let (cks_s, sks_s) = gen_keys(LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS);
 
     let ctemp = cks_s.encrypt_without_padding(1 as u64);
 
@@ -178,7 +186,7 @@ fn test(){
     let poly_size = 512;
     let f = |x| x as u64;
     
-    let lut = gen_lut(message_mod, carry_mod, poly_size, &ct, f);
+    let lut = gen_lut(message_mod as usize, carry_mod as usize, poly_size, &ct, f);
 
     let scal = cks.encrypt_without_padding(1 as u64);
 

@@ -13,7 +13,7 @@ use tfhe::{
     integer::{
         gen_keys_radix, wopbs::*
     },
-    shortint::parameters::WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS,
+    shortint::parameters::LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS,
     shortint::ciphertext::Ciphertext
 };
 

@@ -27,7 +27,7 @@ pub fn aes_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, 
         // let start = std::time::Instant::now();
         
         // for byte_ct in state.iter_mut() {
-        //     sbox(cks, sks, wopbs_key, byte_ct);
+        //     sbox(wopbs_key, byte_ct, false);
         // }
 
         state.par_iter_mut().for_each(|byte_ct| {

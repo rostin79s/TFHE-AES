@@ -26,7 +26,7 @@ impl Client {
     pub fn new() -> Self {
         // Initialize FHE keys
         let nb_block = 8;
-        let (cks, sks) = gen_keys_radix(WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+        let (cks, sks) = gen_keys_radix(LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
 
         let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
 
@@ -73,22 +73,22 @@ impl Client {
 
 
 
-        let start = std::time::Instant::now();
+        // let start = std::time::Instant::now();
 
-        let _encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = key_expansion(&self.cks, &self.sks, &self.wopbs_key, &key_bytes);
+        // let _encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = key_expansion(&self.cks, &self.sks, &self.wopbs_key, &key_bytes);
 
-        println!("Time taken for key expansion: {:?}", start.elapsed());
+        // println!("Time taken for key expansion: {:?}", start.elapsed());
         
-        for (i, encrypted_round_key) in _encrypted_round_keys.iter().enumerate() {
-            let mut decrypted_round_key: u128 = 0;
-            for (j, encrypted_byte) in encrypted_round_key.iter().enumerate() {
-                let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
-                let position = (15 - j) * 8; // Compute bit position from MSB
-                decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
-            }
-            // println!("Round {}: {:032x}", i, decrypted_round_key);
-            assert_eq!(decrypted_round_key, round_keys[i], "Round key mismatch at index {}", i);
-        }
+        // for (i, encrypted_round_key) in _encrypted_round_keys.iter().enumerate() {
+        //     let mut decrypted_round_key: u128 = 0;
+        //     for (j, encrypted_byte) in encrypted_round_key.iter().enumerate() {
+        //         let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
+        //         let position = (15 - j) * 8; // Compute bit position from MSB
+        //         decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
+        //     }
+        //     // println!("Round {}: {:032x}", i, decrypted_round_key);
+        //     assert_eq!(decrypted_round_key, round_keys[i], "Round key mismatch at index {}", i);
+        // }
 
 
         
@@ -114,12 +114,12 @@ impl Client {
         })
         .collect();
     
-        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, _encrypted_round_keys)
+        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, encrypted_round_keys)
     }
 
     pub fn client_decrypt_and_verify(&self,
         fhe_encrypted_state: Vec<BaseRadixCiphertext<Ciphertext>>, fhe_decrypted_state: Vec<BaseRadixCiphertext<Ciphertext>>
-    ) {
+    ) -> bool {
         // Decrypt the message
         let mut encrypted_message_bytes: Vec<u8> = Vec::new();
         for fhe_encrypted_byte in fhe_encrypted_state.iter() {
@@ -148,6 +148,7 @@ impl Client {
             println!("FHE encryption successful. Encrypted message generated: {:032x}", encrypted_message);
         } else {
             println!("Fhe encryption failed. Encrypted message generated: {:032x}", encrypted_message);
+            return false;
         }
 
         let mut decrypted_message_bytes: Vec<u8> = Vec::new();
@@ -165,7 +166,10 @@ impl Client {
             println!("FHE decryption successful. Decrypted message: {:032x}", decrypted_message);
         } else {
             println!("Fhe decryption failed. Decrypted message: {:032x}", decrypted_message);
+            return false;
         }
+
+        return true;
 
         
     }

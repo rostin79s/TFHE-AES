@@ -23,7 +23,7 @@ pub fn sbox(wopbs_key: &WopbsKey, x: &mut BaseRadixCiphertext<Ciphertext>, inv: 
         f = |x| SBOX[x as usize] as u64;
     }
 
-    // let start = std::time::Instant::now();
+    let start = std::time::Instant::now();
     
     let lut = gen_lut(message_mod, carry_mod, poly_size, x, f);
 
@@ -33,7 +33,7 @@ pub fn sbox(wopbs_key: &WopbsKey, x: &mut BaseRadixCiphertext<Ciphertext>, inv: 
     
     *x = ct_res;
 
-    // println!("Sbox: {:?}", start.elapsed());
+    println!("Sbox: {:?}", start.elapsed());
 }
 
 
