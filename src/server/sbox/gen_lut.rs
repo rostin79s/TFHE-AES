@@ -1,42 +1,12 @@
-use tfhe::integer::{IntegerCiphertext, ciphertext::BaseRadixCiphertext, 
-    wopbs::{WopbsKey, IntegerWopbsLUT, PlaintextCount, CiphertextCount}
 
+use tfhe::integer::{
+    IntegerCiphertext,
+    wopbs::{
+        IntegerWopbsLUT,
+        PlaintextCount, 
+        CiphertextCount
+    }
 };
-
-use tfhe::shortint::Ciphertext;
-
-use crate::tables::table::{SBOX, INV_SBOX};
-
-
-pub fn sbox(wopbs_key: &WopbsKey, x: &mut BaseRadixCiphertext<Ciphertext>, inv: bool) {
-    let message_mod = 2;
-    let carry_mod = 1;
-
-    let poly_size = 512;
-
-    let f   : fn(u64) -> u64; 
-
-    if inv {
-        f = |x| INV_SBOX[x as usize] as u64;
-    }
-    else {
-        f = |x| SBOX[x as usize] as u64;
-    }
-
-    let start = std::time::Instant::now();
-    
-    let lut = gen_lut(message_mod, carry_mod, poly_size, x, f);
-
-    let ct_res = wopbs_key.wopbs_without_padding(x, &lut);
-    // let ct_res2 = wopbs_key.wopbs_without_padding(x, &lut);
-    // let ct_res3 = wopbs_key.wopbs_without_padding(x, &lut);
-    
-    *x = ct_res;
-
-    println!("Sbox: {:?}", start.elapsed());
-}
-
-
 
 pub fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT 
     where
@@ -74,4 +44,3 @@ pub fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct:
         }
         lut
     }
-
