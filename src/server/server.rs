@@ -11,8 +11,7 @@ use crate::server::encrypt::shift_rows;
 use crate::server::decrypt::inv_mix_columns;
 use crate::server::decrypt::inv_shift_rows;
 
-use rayon::ThreadPoolBuilder;
-use core_affinity::CoreId;
+// use rayon::ThreadPoolBuilder;
 
 pub fn aes_encrypt(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
 

@@ -1,5 +1,9 @@
 use tfhe::integer::{RadixClientKey, ServerKey};
 
+use tfhe::shortint::prelude::*;
+use tfhe::shortint::WopbsParameters;
+use tfhe::shortint::parameters::DynamicDistribution;
+
 use super::*;
 
 use rayon::prelude::*;
@@ -12,6 +16,7 @@ use aes::cipher::{
     generic_array::GenericArray,
 };
 
+
 use rand::Rng;
 
 pub struct Client {
@@ -22,11 +27,40 @@ pub struct Client {
     key: u128,
 }
 
+
+pub const custom_param: WopbsParameters =
+    WopbsParameters {
+        lwe_dimension: LweDimension(549),
+        glwe_dimension: GlweDimension(4),
+        polynomial_size: PolynomialSize(512),
+        lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+            0.0003177104139262535,
+        )),
+        glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+            3.162026630747649e-16,
+        )),
+        pbs_base_log: DecompositionBaseLog(12),
+        pbs_level: DecompositionLevelCount(3),
+        ks_level: DecompositionLevelCount(5),
+        ks_base_log: DecompositionBaseLog(2),
+        pfks_level: DecompositionLevelCount(2),
+        pfks_base_log: DecompositionBaseLog(17),
+        pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+            3.162026630747649e-16,
+        )),
+        cbs_level: DecompositionLevelCount(1),
+        cbs_base_log: DecompositionBaseLog(13),
+        message_modulus: MessageModulus(2),
+        carry_modulus: CarryModulus(1),
+        ciphertext_modulus: CiphertextModulus::new_native(),
+        encryption_key_choice: EncryptionKeyChoice::Big,
+    };
+
 impl Client {
     pub fn new() -> Self {
         // Initialize FHE keys
         let nb_block = 8;
-        let (cks, sks) = gen_keys_radix(LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
+        let (cks, sks) = gen_keys_radix(custom_param, nb_block);
 
         let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
 
@@ -73,22 +107,22 @@ impl Client {
 
 
 
-        // let start = std::time::Instant::now();
+        let start = std::time::Instant::now();
 
-        // let _encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = key_expansion(&self.cks, &self.sks, &self.wopbs_key, &key_bytes);
+        let _encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = key_expansion(&self.cks, &self.sks, &self.wopbs_key, &key_bytes);
 
-        // println!("Time taken for key expansion: {:?}", start.elapsed());
+        println!("Time taken for key expansion: {:?}", start.elapsed());
         
-        // for (i, encrypted_round_key) in _encrypted_round_keys.iter().enumerate() {
-        //     let mut decrypted_round_key: u128 = 0;
-        //     for (j, encrypted_byte) in encrypted_round_key.iter().enumerate() {
-        //         let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
-        //         let position = (15 - j) * 8; // Compute bit position from MSB
-        //         decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
-        //     }
-        //     // println!("Round {}: {:032x}", i, decrypted_round_key);
-        //     assert_eq!(decrypted_round_key, round_keys[i], "Round key mismatch at index {}", i);
-        // }
+        for (i, encrypted_round_key) in _encrypted_round_keys.iter().enumerate() {
+            let mut decrypted_round_key: u128 = 0;
+            for (j, encrypted_byte) in encrypted_round_key.iter().enumerate() {
+                let decrypted_byte: u128 = self.cks.decrypt_without_padding(encrypted_byte); // Decrypt as an 8-bit integer
+                let position = (15 - j) * 8; // Compute bit position from MSB
+                decrypted_round_key |= (decrypted_byte as u128) << position; // Store in the correct position
+            }
+            // println!("Round {}: {:032x}", i, decrypted_round_key);
+            assert_eq!(decrypted_round_key, round_keys[i], "Round key mismatch at index {}", i);
+        }
 
 
         
@@ -114,7 +148,7 @@ impl Client {
         })
         .collect();
     
-        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, encrypted_round_keys)
+        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_bytes, _encrypted_round_keys)
     }
 
     pub fn client_decrypt_and_verify(&self,
@@ -248,12 +282,13 @@ pub fn key_expansion(cks: &RadixClientKey, sks: &ServerKey, wopbs_key: &WopbsKey
 
         for j in 0..4 {
             let lut = gen_lut(message_mod, carry_mod, poly_size, &w[i - nk][j], f);
-            let refresh_ct = wopbs_key.wopbs_without_padding(&w[i - nk][j], &lut);
-            w[i - nk][j] = refresh_ct;
+            // let refresh_ct = wopbs_key.wopbs_without_padding(&w[i - nk][j], &lut);
+            // w[i - nk][j] = refresh_ct;
 
 
             let new_word = sks.unchecked_add(&w[i - nk][j], &temp[j]);
-            new_words.push(new_word);
+            let refresh_ct = wopbs_key.wopbs_without_padding(&new_word, &lut);
+            new_words.push(refresh_ct);
         }
         w.push(new_words);
     }
