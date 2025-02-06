@@ -8,8 +8,7 @@ use server::server::Server;
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
 use tfhe::shortint::Ciphertext;
 
-use clap::{Arg, Command};
-use clap::{Parser};
+use clap::Parser;
 
 /// Struct to define command-line arguments
 #[derive(Parser, Debug)]
@@ -43,9 +42,9 @@ fn main() {
 
     let client_obj = Client::new(number_of_outputs, iv, key);
 
-    let (cks, sks, wopbs_key, states, encrypted_key) = client_obj.client_encrypt();
+    let (public_key, server_key, wopbs_key, states, encrypted_key) = client_obj.client_encrypt();
 
-    let server_obj = Server::new(cks, sks, wopbs_key);
+    let server_obj = Server::new(public_key, server_key, wopbs_key);
 
     let start = std::time::Instant::now();
 

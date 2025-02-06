@@ -1,5 +1,12 @@
-use tfhe::shortint::Ciphertext;
-use tfhe::integer::{wopbs::WopbsKey, ServerKey, RadixClientKey, ciphertext::BaseRadixCiphertext};
+use tfhe::{
+    shortint::Ciphertext,
+    integer::{
+        wopbs::WopbsKey, 
+        ServerKey,
+        PublicKey,
+        ciphertext::BaseRadixCiphertext
+    }
+};
 
 use super::sbox::{
     sbox::sbox,
@@ -15,20 +22,20 @@ use super::key_expansion::key_expansion_utils::{RCON, fhe_rot_word, fhe_sub_word
 use rayon::prelude::*;
 
 pub struct Server {
-    cks: RadixClientKey,
+    public_key: PublicKey,
     sks: ServerKey,
     wopbs_key: WopbsKey,
 }
 
 impl Server {
-    pub fn new(cks: RadixClientKey, sks: ServerKey, wopbs_key: WopbsKey) -> Self {
-        Server { cks, sks, wopbs_key }
+    pub fn new(public_key: PublicKey, sks: ServerKey, wopbs_key: WopbsKey) -> Self {
+        Server { public_key, sks, wopbs_key }
     }
 
     pub fn aes_encrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
         let rounds = 10;
 
-        let zero = self.cks.encrypt_without_padding(0 as u64); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????
+        let zero = self.public_key.encrypt_radix_without_padding(0 as u64,8); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????
 
         add_round_key(&self.sks,  state, &encrypted_round_keys[0]);
 
@@ -58,36 +65,36 @@ impl Server {
         let rounds = 10;
 
         add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
-        // debug_state(state, rounds, &self.cks, "add round key");
+        // debug_state(state, rounds, &self.public_key, "add round key");
 
-        let zero = &self.cks.encrypt_without_padding(0 as u64);
+        let zero = &self.public_key.encrypt_radix_without_padding(0 as u64, 8);
 
         for round in (2..=rounds).rev() {
             inv_shift_rows(state);
-            // debug_state(state, round, &self.cks, "inv shift rows");
+            // debug_state(state, round, &self.public_key, "inv shift rows");
 
             state.par_iter_mut().for_each(|byte_ct| {
                 sbox(&self.wopbs_key, byte_ct, true);
             });
-            // debug_state(state, round, &self.cks, "sbox");
+            // debug_state(state, round, &self.public_key, "sbox");
 
             add_round_key(&self.sks, state, &encrypted_round_keys[round - 1]);
-            // debug_state(state, round, &self.cks, "add round key");
+            // debug_state(state, round, &self.public_key, "add round key");
 
             inv_mix_columns(&self.sks, state, &zero);
-            // debug_state(state, round, &self.cks, "inv mix columns");
+            // debug_state(state, round, &self.public_key, "inv mix columns");
         }
 
         inv_shift_rows(state);
-        // debug_state(state, 1, &self.cks, "inv shift rows");
+        // debug_state(state, 1, &self.public_key, "inv shift rows");
 
         state.par_iter_mut().for_each(|byte_ct| {
             sbox(&self.wopbs_key, byte_ct, true);
         });
-        // debug_state(state, 1, &self.cks, "sbox");
+        // debug_state(state, 1, &self.public_key, "sbox");
 
         add_round_key(&self.sks, state, &encrypted_round_keys[0]);
-        // debug_state(state, 1, &self.cks, "add round key");
+        // debug_state(state, 1, &self.public_key, "add round key");
     }
 
     pub fn aes_key_expansion(&self, key: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<Vec<BaseRadixCiphertext<Ciphertext>>> {
@@ -116,7 +123,7 @@ impl Server {
                 temp = fhe_rot_word(&temp);
                 fhe_sub_word(&self.wopbs_key, &mut temp);
                 let rcon_byte= RCON[(i / nk) - 1] as u64;
-                let encrypted_rcon = &self.cks.encrypt_without_padding(rcon_byte as u64);
+                let encrypted_rcon = &self.public_key.encrypt_radix_without_padding(rcon_byte as u64, 8);
                 temp[0] = self.sks.unchecked_add(&temp[0], &encrypted_rcon);
             }
             let mut new_words = Vec::new();
@@ -146,17 +153,6 @@ impl Server {
     
         round_keys
     }
-}
-
-
-fn debug_state(state: &Vec<BaseRadixCiphertext<Ciphertext>>, round: usize, cks: &RadixClientKey, function_name: &str) {
-    let mut decrypted_state: Vec<u8> = Vec::new();
-    for byte_ct in state {
-        let decrypted_byte: u8 = cks.decrypt_without_padding(byte_ct);
-        decrypted_state.push(decrypted_byte);
-    }
-    let hex_state: String = decrypted_state.iter().map(|byte| format!("{:02x}", byte)).collect::<Vec<String>>().join("");
-    println!("After {} in round {}: {}", function_name, round, hex_state);
 }
 
 fn add_round_key(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, round_key: &Vec<BaseRadixCiphertext<Ciphertext>>) {

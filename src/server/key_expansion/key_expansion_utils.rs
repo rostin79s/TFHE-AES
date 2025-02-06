@@ -23,7 +23,9 @@ pub fn fhe_rot_word(word: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<BaseRadi
 
 pub fn fhe_sub_word(wopbs_key: &WopbsKey, word: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
     for i in 0..4 {
+        let start = std::time::Instant::now();
         sbox(wopbs_key, &mut word[i], false);
+        println!("Sbox: {:?}", start.elapsed());
     }
 
     // word.par_iter_mut().for_each(|byte| {

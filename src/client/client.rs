@@ -1,10 +1,15 @@
-use core::num;
-
 use tfhe::{
-    core_crypto::prelude::generate_lwe_keyswitch_key, integer::{
-        ciphertext::BaseRadixCiphertext, gen_keys_radix, wopbs::WopbsKey, RadixClientKey, ServerKey
+    integer::{
+        ciphertext::BaseRadixCiphertext,
+        gen_keys_radix,
+        wopbs::WopbsKey,
+        RadixClientKey,
+        ServerKey,
+        PublicKey
     }, shortint::{
-        parameters::{DynamicDistribution, LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS}, prelude::*, WopbsParameters
+        parameters::DynamicDistribution,
+        prelude::*,
+        WopbsParameters
         
     }
 };
@@ -20,34 +25,10 @@ use aes::cipher::{
 // use rand::Rng;
 
 
-pub const CUSTOM_PARAM: WopbsParameters =
-    WopbsParameters {
-        lwe_dimension: LweDimension(549),
-        glwe_dimension: GlweDimension(4),
-        polynomial_size: PolynomialSize(512),
-        lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-            0.0003177104139262535,
-        )),
-        glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-            3.162026630747649e-16,
-        )),
-        pbs_base_log: DecompositionBaseLog(12),
-        pbs_level: DecompositionLevelCount(3),
-        ks_level: DecompositionLevelCount(5),
-        ks_base_log: DecompositionBaseLog(2),
-        pfks_level: DecompositionLevelCount(2),
-        pfks_base_log: DecompositionBaseLog(17),
-        pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
-            3.162026630747649e-16,
-        )),
-        cbs_level: DecompositionLevelCount(1),
-        cbs_base_log: DecompositionBaseLog(13),
-        message_modulus: MessageModulus(2),
-        carry_modulus: CarryModulus(1),
-        ciphertext_modulus: CiphertextModulus::new_native(),
-        encryption_key_choice: EncryptionKeyChoice::Big,
-    };
 
+// Used concrete-optimizer to find paramter-set that gives 128 bit security and 
+// failure probability of 7.5e-20 = 2^-64
+// https://github.com/zama-ai/concrete/tree/main/compilers/concrete-optimizer
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
     lwe_dimension: LweDimension(676),
@@ -106,7 +87,7 @@ impl Client {
         }
     }
 
-    pub fn client_encrypt(&self) -> (RadixClientKey, ServerKey, WopbsKey, Vec<Vec<BaseRadixCiphertext<Ciphertext>>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
+    pub fn client_encrypt(&self) -> (PublicKey, ServerKey, WopbsKey, Vec<Vec<BaseRadixCiphertext<Ciphertext>>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
 
         let mut encrypted_key: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
 
@@ -134,10 +115,10 @@ impl Client {
         }
 
 
-    
+        let public_key = PublicKey::new(&self.cks);
         
     
-        (self.cks.clone(), self.sks.clone(), self.wopbs_key.clone(), encrypted_messages, encrypted_key)
+        (public_key, self.sks.clone(), self.wopbs_key.clone(), encrypted_messages, encrypted_key)
     }
 
     pub fn client_decrypt_and_verify(&self, index: usize,
@@ -168,9 +149,9 @@ impl Client {
     
         // Verify the decrypted message
         if encrypted_message == clear_encrypted_message {
-            println!("FHE encryption successful. Encrypted message generated: {:032x}", encrypted_message);
+            // println!("FHE encryption successful. Encrypted message generated: {:032x}", encrypted_message);
         } else {
-            println!("Fhe encryption failed. Encrypted message generated: {:032x}", encrypted_message);
+            println!("Fhe encryption failed ******************************************");
         }
 
         let mut decrypted_message_bytes: Vec<u8> = Vec::new();
@@ -185,9 +166,9 @@ impl Client {
         }
 
         if decrypted_message == message {
-            println!("FHE decryption successful. Decrypted message: {:032x}", decrypted_message);
+            // println!("FHE decryption successful. Decrypted message: {:032x}", decrypted_message);
         } else {
-            println!("Fhe decryption failed. Decrypted message: {:032x}", decrypted_message);
+            println!("Fhe decryption failed ***************************************");
         }
 
 
