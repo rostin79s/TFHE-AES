@@ -8,44 +8,86 @@ use server::server::Server;
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
 use tfhe::shortint::Ciphertext;
 
+use clap::{Arg, Command};
+use clap::{Parser};
 
+/// Struct to define command-line arguments
+#[derive(Parser, Debug)]
+#[command(name = "FHE AES", about = "A Fully Homomorphic Encryption-based AES system.")]
+struct Args {
+    /// Number of outputs
+    #[arg(long, value_parser)]
+    number_of_outputs: usize,
+
+    /// Initialization Vector (IV) - Should be a 16-byte hex string
+    #[arg(long, value_parser)]
+    iv: u128,
+
+    /// AES Key - Should be a 16/24/32-byte hex string (AES-128, AES-192, AES-256)
+    #[arg(long, value_parser)]
+    key: u128,
+}
 
 fn main() {
-    let client_obj = Client::new();
+    let args = Args::parse();
 
-    let (cks, sks, wopbs_key, state, encrypted_key) = client_obj.client_encrypt();
+    println!("Number of Outputs: {}", args.number_of_outputs);
+    println!("IV: {}", args.iv);
+    println!("Key: {}", args.key);
+
+    // Convert IV and Key from hex strings to byte arrays
+    let number_of_outputs = args.number_of_outputs;
+    let iv = args.iv;
+    let key = args.key;
+
+
+    let client_obj = Client::new(number_of_outputs, iv, key);
+
+    let (cks, sks, wopbs_key, states, encrypted_key) = client_obj.client_encrypt();
 
     let server_obj = Server::new(cks, sks, wopbs_key);
 
+    let start = std::time::Instant::now();
+
     let encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = server_obj.aes_key_expansion(&encrypted_key);
 
-
-    loop {
-
-    let mut copy_state = state.clone();
-
-    let start = std::time::Instant::now();
-
-    server_obj.aes_encrypt(&encrypted_round_keys, &mut copy_state);
-
     let elapsed = start.elapsed();
-    println!("Time taken for aes encryption: {:?}", elapsed);
+    println!("Time taken for key expansion: {:?}", elapsed);
 
-    let mut fhe_decrypted_state = copy_state.clone();
 
-    let start = std::time::Instant::now();
+    // loop {
 
-    server_obj.aes_decrypt(&encrypted_round_keys, &mut fhe_decrypted_state);
+    // loop number of outputs
 
-    let elapsed = start.elapsed();
-    println!("Time taken for aes decryption: {:?}", elapsed);
+    for (i,state) in states.iter().enumerate() {
 
-    let b = client_obj.client_decrypt_and_verify(copy_state, fhe_decrypted_state);
+        let mut copy_state = state.clone();
 
-    if !b {
-        break;
+        let start = std::time::Instant::now();
+
+        server_obj.aes_encrypt(&encrypted_round_keys, &mut copy_state);
+
+        let elapsed = start.elapsed();
+        println!("Time taken for aes encryption: {:?}", elapsed);
+
+        let mut fhe_decrypted_state = copy_state.clone();
+
+        let start = std::time::Instant::now();
+
+        server_obj.aes_decrypt(&encrypted_round_keys, &mut fhe_decrypted_state);
+
+        let elapsed = start.elapsed();
+        println!("Time taken for aes decryption: {:?}", elapsed);
+
+        client_obj.client_decrypt_and_verify(i, copy_state, 
+        fhe_decrypted_state);
     }
+        
+    
+    // if !b {
+    //     break;
+    // }
 
-    }
+    // }
 
 }

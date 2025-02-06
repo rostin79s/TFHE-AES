@@ -58,36 +58,36 @@ impl Server {
         let rounds = 10;
 
         add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
-        debug_state(state, rounds, &self.cks, "add round key");
+        // debug_state(state, rounds, &self.cks, "add round key");
 
         let zero = &self.cks.encrypt_without_padding(0 as u64);
 
         for round in (2..=rounds).rev() {
             inv_shift_rows(state);
-            debug_state(state, round, &self.cks, "inv shift rows");
+            // debug_state(state, round, &self.cks, "inv shift rows");
 
             state.par_iter_mut().for_each(|byte_ct| {
                 sbox(&self.wopbs_key, byte_ct, true);
             });
-            debug_state(state, round, &self.cks, "sbox");
+            // debug_state(state, round, &self.cks, "sbox");
 
             add_round_key(&self.sks, state, &encrypted_round_keys[round - 1]);
-            debug_state(state, round, &self.cks, "add round key");
+            // debug_state(state, round, &self.cks, "add round key");
 
             inv_mix_columns(&self.sks, state, &zero);
-            debug_state(state, round, &self.cks, "inv mix columns");
+            // debug_state(state, round, &self.cks, "inv mix columns");
         }
 
         inv_shift_rows(state);
-        debug_state(state, 1, &self.cks, "inv shift rows");
+        // debug_state(state, 1, &self.cks, "inv shift rows");
 
         state.par_iter_mut().for_each(|byte_ct| {
             sbox(&self.wopbs_key, byte_ct, true);
         });
-        debug_state(state, 1, &self.cks, "sbox");
+        // debug_state(state, 1, &self.cks, "sbox");
 
         add_round_key(&self.sks, state, &encrypted_round_keys[0]);
-        debug_state(state, 1, &self.cks, "add round key");
+        // debug_state(state, 1, &self.cks, "add round key");
     }
 
     pub fn aes_key_expansion(&self, key: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<Vec<BaseRadixCiphertext<Ciphertext>>> {
