@@ -1,11 +1,7 @@
 use tfhe::{
-    shortint::Ciphertext,
     integer::{
-        wopbs::WopbsKey, 
-        ServerKey,
-        PublicKey,
-        ciphertext::BaseRadixCiphertext
-    }
+        backward_compatibility::public_key, ciphertext::BaseRadixCiphertext, wopbs::WopbsKey, PublicKey, ServerKey
+    }, shortint::Ciphertext
 };
 
 use super::sbox::{
@@ -32,7 +28,14 @@ impl Server {
         Server { public_key, sks, wopbs_key }
     }
 
-    pub fn aes_encrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
+    pub fn aes_encrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, i: u64){
+        // this should be scalar without noise, however the scalar addition functions 
+        // do not work for the no padding case. We apply sbox (LUT) right after this and
+        // round key so this extra noise won't affect anything.
+        let encrypted_i = self.public_key.encrypt_radix_without_padding(i as u64, 8);
+        
+        self.sks.unchecked_add_assign(state.last_mut().unwrap(), &encrypted_i);
+
         let rounds = 10;
 
         let zero = self.public_key.encrypt_radix_without_padding(0 as u64,8); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????

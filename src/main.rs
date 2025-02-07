@@ -42,7 +42,7 @@ fn main() {
 
     let client_obj = Client::new(number_of_outputs, iv, key);
 
-    let (public_key, server_key, wopbs_key, states, encrypted_key) = client_obj.client_encrypt();
+    let (public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
 
     let server_obj = Server::new(public_key, server_key, wopbs_key);
 
@@ -54,39 +54,33 @@ fn main() {
     println!("Time taken for key expansion: {:?}", elapsed);
 
 
-    // loop {
+
 
     // loop number of outputs
-
-    for (i,state) in states.iter().enumerate() {
-
-        let mut copy_state = state.clone();
+    for i in 0..number_of_outputs{
 
         let start = std::time::Instant::now();
 
-        server_obj.aes_encrypt(&encrypted_round_keys, &mut copy_state);
+        // add encrypted_iv + i, where vector is storeing MSB to LSB,
+        // dont use iv, use encrypted_iv and plus i it
+        
+        let mut state = encrypted_iv.clone();
+
+        server_obj.aes_encrypt(&encrypted_round_keys, &mut state, i as u64);
 
         let elapsed = start.elapsed();
         println!("Time taken for aes encryption: {:?}", elapsed);
 
-        let mut fhe_decrypted_state = copy_state.clone();
+        // let mut fhe_decrypted_state = state.clone();
 
-        let start = std::time::Instant::now();
+        // let start = std::time::Instant::now();
 
-        server_obj.aes_decrypt(&encrypted_round_keys, &mut fhe_decrypted_state);
+        // server_obj.aes_decrypt(&encrypted_round_keys, &mut fhe_decrypted_state);
 
-        let elapsed = start.elapsed();
-        println!("Time taken for aes decryption: {:?}", elapsed);
+        // let elapsed = start.elapsed();
+        // println!("Time taken for aes decryption: {:?}", elapsed);
 
-        client_obj.client_decrypt_and_verify(i, copy_state, 
-        fhe_decrypted_state);
+        client_obj.client_decrypt_and_verify(i, &mut state);
     }
-        
-    
-    // if !b {
-    //     break;
-    // }
-
-    // }
 
 }
