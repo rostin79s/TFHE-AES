@@ -32,7 +32,7 @@ use aes::cipher::{
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
     lwe_dimension: LweDimension(631),
-    glwe_dimension: GlweDimension(4),
+    glwe_dimension: GlweDimension(1),
     polynomial_size: PolynomialSize(512),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
