@@ -1,12 +1,18 @@
 use tfhe::{
     integer::{
-        backward_compatibility::public_key, ciphertext::BaseRadixCiphertext, wopbs::WopbsKey, ClientKey, IntegerCiphertext, IntegerRadixCiphertext, PublicKey, RadixClientKey, ServerKey
+        ciphertext::BaseRadixCiphertext,
+        wopbs::WopbsKey,
+        IntegerCiphertext,
+        PublicKey,
+        RadixClientKey,
+        ServerKey
     },
     shortint::Ciphertext,
 };
 
 use super::sbox::{
-    sbox::{sbox,many_sbox, many_wopbs_without_padding},
+    sbox::{sbox,many_sbox},
+    many_wopbs::many_wopbs_without_padding,
     gen_lut::gen_lut
 };
 use super::encrypt::mix_columns;
@@ -61,6 +67,7 @@ impl Server {
         add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
     }
 
+    // Same techniques used as AES encryption. 
     pub fn aes_decrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>>, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
         let rounds = 10;
 
@@ -99,7 +106,7 @@ impl Server {
 
     pub fn aes_key_expansion(&self, key: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<Vec<BaseRadixCiphertext<Ciphertext>>> {
         let nk = 4; // Number of 32-bit words in the key for AES-128
-        let nb = 4; // Number of columns in the fhe_encrypted_state
+        let nb = 4; // Number of columns in the state
         let nr = 10; // Number of rounds for AES-128
         let mut w = Vec::new(); // Word array to hold expanded keys
     
