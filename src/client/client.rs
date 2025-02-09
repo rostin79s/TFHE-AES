@@ -92,7 +92,7 @@ impl Client {
             ks_level: wopbs_params.ks_level,
             message_modulus: wopbs_params.message_modulus,
             carry_modulus: wopbs_params.carry_modulus,
-            max_noise_level: MaxNoiseLevel::new(5),
+            max_noise_level: MaxNoiseLevel::new(5), // Computed from log norm2
             log2_p_fail: 1.0,
             ciphertext_modulus: wopbs_params.ciphertext_modulus,
             encryption_key_choice: wopbs_params.encryption_key_choice,
@@ -107,9 +107,6 @@ impl Client {
 
 
         let (cks, sks) = gen_keys_radix(shortint_parameters_set, nb_block);
-        let maxnoise = cks.parameters().max_noise_level().get();
-        println!("maxnoise: {}", maxnoise);
-        // let (cks, sks) = gen_keys_radix(LEGACY_WOPBS_ONLY_8_BLOCKS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, nb_block);
         let wopbs_key = WopbsKey::new_wopbs_key_only_for_wopbs(&cks, &sks);
 
         let number_of_outputs = _number_of_outputs;
@@ -142,54 +139,44 @@ impl Client {
             encrypted_iv.push(self.cks.encrypt_without_padding(byte as u64));
         }
 
-
+        // for encrypting constants server side
         let public_key = PublicKey::new(&self.cks);
-
-        let test = self.cks.encrypt_without_padding(3 as u64);
-
-        let sag = public_key.encrypt_radix_without_padding(3 as u64, 8);
-        let res = self.sks.unchecked_add(&test, &sag);
-        let dec: u64 = self.cks.decrypt_without_padding(&res);
-        println!("decrypted_sag: {}", dec);
-
-        
     
         (self.cks.clone(), public_key, self.sks.clone(), self.wopbs_key.clone(), encrypted_iv, encrypted_key)
     }
 
-    pub fn client_decrypt_and_verify(&self, index: usize,
-        fhe_encrypted_state: &mut Vec<BaseRadixCiphertext<Ciphertext>>
+    pub fn client_decrypt_and_verify(&self, vec_fhe_encrypted_state: &mut Vec<Vec<BaseRadixCiphertext<Ciphertext>>>
     ){
-        let message = self.iv + index as u128;
-        println!("message and index: {} , {}", message, index);
-        let mut encrypted_message_bytes: Vec<u8> = Vec::new();
-        for fhe_encrypted_byte in fhe_encrypted_state.iter() {
-            let encrypted_byte: u128 = self.cks.decrypt_without_padding(fhe_encrypted_byte);
-            encrypted_message_bytes.push(encrypted_byte as u8);
+        for (index, fhe_encrypted_state) in vec_fhe_encrypted_state.iter().enumerate() {
+            let message = self.iv + index as u128;
+            let mut encrypted_message_bytes: Vec<u8> = Vec::new();
+            for fhe_encrypted_byte in fhe_encrypted_state.iter() {
+                let encrypted_byte: u128 = self.cks.decrypt_without_padding(fhe_encrypted_byte);
+                encrypted_message_bytes.push(encrypted_byte as u8);
+            }
+                // Convert decrypted bytes to u128
+            let mut encrypted_message: u128 = 0;
+            for (i, &byte) in encrypted_message_bytes.iter().enumerate() {
+                encrypted_message |= (byte as u128) << ((15 - i) * 8);
+            }
+            // Encrypt the message using AES for verification
+            let encrypted_key = self.key.to_be_bytes();
+            let mut message_bytes = message.to_be_bytes();
+        
+            let cipher = Aes128::new(GenericArray::from_slice(&encrypted_key));
+            cipher.encrypt_block(GenericArray::from_mut_slice(&mut message_bytes));
+        
+            let clear_encrypted_message = u128::from_be_bytes(message_bytes);
+
+            assert_eq!(encrypted_message, clear_encrypted_message);            
+            
         }
+        
     
-        // Convert decrypted bytes to u128
-        let mut encrypted_message: u128 = 0;
-        for (i, &byte) in encrypted_message_bytes.iter().enumerate() {
-            encrypted_message |= (byte as u128) << ((15 - i) * 8);
-        }
+        
 
         
-        // Encrypt the message using AES for verification
-        let encrypted_key = self.key.to_be_bytes();
-        let mut message_bytes = message.to_be_bytes();
-    
-        let cipher = Aes128::new(GenericArray::from_slice(&encrypted_key));
-        cipher.encrypt_block(GenericArray::from_mut_slice(&mut message_bytes));
-    
-        let clear_encrypted_message = u128::from_be_bytes(message_bytes);
-    
-        // Verify the decrypted message
-        if encrypted_message == clear_encrypted_message {
-            // println!("FHE encryption successful. Encrypted message generated: {:032x}", encrypted_message);
-        } else {
-            println!("Fhe encryption failed ******************************************. Encrypted message generated: {:032x}", encrypted_message);
-        }
+        
 
         // let mut decrypted_message_bytes: Vec<u8> = Vec::new();
         // for fhe_decrypted_byte in fhe_decrypted_state.iter() {

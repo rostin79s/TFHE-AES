@@ -40,7 +40,9 @@ pub fn mul14(x: u8) -> u8 {
     mul2(mul2(mul2(x) ^ x) ^ x)
 }
 
-pub fn key_sbox(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &tfhe::shortint::wopbs::WopbsKey, ct_in: &mut BaseRadixCiphertext<Ciphertext>){
+
+// Sbox evaluation used in Key Expansion using wopbs.
+pub fn sbox(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &tfhe::shortint::wopbs::WopbsKey, ct_in: &mut BaseRadixCiphertext<Ciphertext>){
     let f = |x| SBOX[x as usize] as u64;
     let lut = gen_lut(
         wopbs_key_short.param.message_modulus.0 as usize,
@@ -53,7 +55,10 @@ pub fn key_sbox(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &tf
     *ct_in = ct_res;
 }
 
-pub fn sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Ciphertext>, inv: bool) -> Vec<BaseRadixCiphertext<Ciphertext>> {
+// We embed the mul(x) functions in the sbox function, that are used in the subsequent mix columns operation in both 
+// AES encryption and decryption. We sperate the circuit bootstrapping functionality from the vertical packing, and we comute
+// multiple look up tables with different vertical packings, which is almost free compared to the cost of the circuit bootstrapping.
+pub fn many_sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Ciphertext>, inv: bool) -> Vec<BaseRadixCiphertext<Ciphertext>> {
 
     let mut functions: Vec<fn(u64) -> u64> = vec![];
     let mut luts: Vec<IntegerWopbsLUT> = vec![];

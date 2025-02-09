@@ -6,7 +6,7 @@ use tfhe::{
 };
 
 use super::sbox::{
-    sbox::{sbox,key_sbox, many_wopbs_without_padding},
+    sbox::{sbox,many_sbox, many_wopbs_without_padding},
     gen_lut::gen_lut
 };
 use super::encrypt::mix_columns;
@@ -32,161 +32,30 @@ impl Server {
         Server { cks, public_key, sks, wopbs_key, wopbs_key_short }
     }
 
-    pub fn add_scalar(&self, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, i: u128) {
-  
-        let i: u128 = 120;
-
-        let mut i_blocks = vec![];
-        for j in (0..16).rev() {
-            let block = ((i >> (8 * j)) & 0xFF) as u64;
-            i_blocks.push(block);
-        }
-        println!("i_blocks: {:?}", i_blocks);
-        // Define the functions f and g
-        let f = |x| -> u64 { (x + i as u64) % 256 };
-        let g = |x| -> u64 { if x + i as u64 > 255 { 1 } else { 0 } };
-    
-        // Generate LUTs for f and g
-        let lut_f = gen_lut(
-            self.wopbs_key_short.param.message_modulus.0 as usize,
-            self.wopbs_key_short.param.carry_modulus.0 as usize,
-            self.wopbs_key_short.param.polynomial_size.0,
-            8,
-            f,
-        );
-    
-        let lut_g = gen_lut(
-            self.wopbs_key_short.param.message_modulus.0 as usize,
-            self.wopbs_key_short.param.carry_modulus.0 as usize,
-            self.wopbs_key_short.param.polynomial_size.0,
-            8,
-            g,
-        );
-    
-        // Use many_wopbs_without_padding to generate the results
-        let luts = vec![lut_f, lut_g];
-        let results = many_wopbs_without_padding(state.last_mut().unwrap(), &self.wopbs_key_short, luts);
-
-        // decrypt both byte in results
-        let decrypted_results: Vec<u64> = results.iter().map(|x| self.cks.decrypt_without_padding(x)).collect();
-        println!("decrypted_results: {:?}", decrypted_results);
-
-        let mut new_state = Vec::new();
-        new_state.push(results[0].clone());
-
-        let carry = results[1].blocks()[0].clone();
-        let mut carrys = Vec::new();
-        carrys.push(carry);
-
-        let mut c = 0;
-        for index in (0..15).rev() {
-            println!("index: {:?}", index);
-            let dec_state_byte: u64 = self.cks.decrypt_without_padding(&state[index]);
-            println!("dec_state_byte: {:?}", dec_state_byte);
-            let blocks = state[index].blocks();
-            // add blocks to carry and create new block
-            let mut new_blocks = Vec::new();
-            for block in blocks.iter() {
-                new_blocks.push(block.clone());
-            }
-            new_blocks.push(carrys[c].clone());
-            let mut new_radix = BaseRadixCiphertext::from_blocks(new_blocks);
-
-            // fp should be a function where first 8 bits of x and last bit of x if all are 1, return 1, else 0
-            // gp should be a function where first 8 bits as num + last bit of x as num % 256
-
-            let fp = |x: u64| -> u64 {
-                ((x & 0xFF) + ((x >> 8) & 0x1) + (i_blocks[index])) % 256
-            };
-            let gp = |x: u64| -> u64 {
-                if ((x & 0xFF) + ((x >> 8) & 0x1) + (i_blocks[index])) > 255 {
-                    1
-                } else {
-                    0
-                }
-            };
-
-            let lut_fp = gen_lut(
-                self.wopbs_key_short.param.message_modulus.0 as usize,
-                self.wopbs_key_short.param.carry_modulus.0 as usize,
-                self.wopbs_key_short.param.polynomial_size.0,
-                9,
-                fp,
-            );
-        
-            let lut_gp = gen_lut(
-                self.wopbs_key_short.param.message_modulus.0 as usize,
-                self.wopbs_key_short.param.carry_modulus.0 as usize,
-                self.wopbs_key_short.param.polynomial_size.0,
-                9,
-                gp,
-            );
-        
-            // Use many_wopbs_without_padding to generate the results
-            let luts = vec![lut_fp, lut_gp];
-            let resultsp = many_wopbs_without_padding(&mut new_radix, &self.wopbs_key_short, luts);
-            println!("resultp length: {:?}", resultsp[0].blocks().len());
-
-            // decrypt both byte in results
-            let decrypted_resultsp: Vec<u64> = resultsp.iter().map(|x| self.cks.decrypt_without_padding(x)).collect();
-            println!("decrypted_resultsp: {:?}", decrypted_resultsp);
-            let res_blocks = resultsp[0].blocks();
-            let mut new_blocks = Vec::new();
-            for i in 0..res_blocks.len()-1 {
-                new_blocks.push(res_blocks[i].clone());
-            }
-            let new_radix_block = BaseRadixCiphertext::from_blocks(new_blocks);
-
-            new_state.push(new_radix_block);
-            carrys.push(resultsp[1].blocks()[0].clone());
-            c += 1;
-
-        }
-
-        // reverse vector new_state
-        new_state.reverse();
-
-        let decrypted_state = state.iter().map(|x| self.cks.decrypt_without_padding(x)).collect::<Vec<u64>>();
-        println!("decrypted_state: {:?}", decrypted_state);
-
-        //decrypt vector new_state and print it
-        let decrypted_new_state: Vec<u64> = new_state.iter().map(|x| self.cks.decrypt_without_padding(x)).collect();
-        println!("decrypted_new_state: {:?}", decrypted_new_state);
-
-        
-    
-        // Update the state with the results
-        // *state = results;
-    }
-
-    pub fn aes_encrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, i: u128){
-        // this should be scalar without noise, however the scalar addition functions 
-        // do not work for the no padding case. We apply sbox (LUT) right after this and
-        // round key so this extra noise won't affect anything.
-        
-        self.add_scalar(state, i as u128);
+    // AES encryption. We use wopbs_without_padding to compute SBOX, and use many_wopbs_without_padding to compute many 
+    // lookups to reduce max noise level required (additions between wopbs).
+    pub fn aes_encrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>> , state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){
 
         let rounds = 10;
-
-        let zero = self.public_key.encrypt_radix_without_padding(0 as u64,8); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????
-
         add_round_key(&self.sks,  state, &encrypted_round_keys[0]);
 
         for round in 1..rounds {
-
+            // we apply many sbox function, which embeds the mul functions in the sbox function, to compute mul2 and mul3 in one go with the cost of one CBS. This computes 3 LUTs, one normal SBOX LUT and one mul2(SBOX) LUT and one mul3(SBOX) LUT, and store the resulting ciphertext in a vector in respective order.
             let mut mul_sbox_state: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = Vec::new();
             for byte_ct in state.iter_mut() {
-                let mul_sbox_byte = sbox(&self.wopbs_key_short, byte_ct, false);
+                let mul_sbox_byte = many_sbox(&self.wopbs_key_short, byte_ct, false);
                 mul_sbox_state.push(mul_sbox_byte);
             }
 
-            let mut new_state = mix_columns(&self.sks, &mut mul_sbox_state, &zero);
+            // now we apply mix columns (first we do shift rows inside), using the mul resuts stored in mul_sbox_state.
+            let mut new_state = mix_columns(&self.sks, &mut mul_sbox_state);
             add_round_key(&self.sks, &mut new_state, &encrypted_round_keys[round]);
             *state = new_state;
         }
 
+        // We do normal sbox since there is no mix columns after.
         for byte_ct in state.iter_mut() {
-            key_sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct);
+            sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct);
         }
         shift_rows(state);
         add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
@@ -205,7 +74,7 @@ impl Server {
             // debug_state(state, round, &self.public_key, "inv shift rows");
 
             state.par_iter_mut().for_each(|byte_ct| {
-                sbox(&self.wopbs_key_short, byte_ct, true);
+                many_sbox(&self.wopbs_key_short, byte_ct, true);
             });
             // debug_state(state, round, &self.public_key, "sbox");
 
@@ -220,7 +89,7 @@ impl Server {
         // debug_state(state, 1, &self.public_key, "inv shift rows");
 
         state.par_iter_mut().for_each(|byte_ct| {
-            sbox(&self.wopbs_key_short, byte_ct, true);
+            many_sbox(&self.wopbs_key_short, byte_ct, true);
         });
         // debug_state(state, 1, &self.public_key, "sbox");
 
@@ -237,7 +106,10 @@ impl Server {
         let message_mod = self.wopbs_key_short.param.message_modulus.0 as usize;
         let carry_mod = self.wopbs_key_short.param.carry_modulus.0 as usize;
         let poly_size = self.wopbs_key_short.param.polynomial_size.0;
+
+        // We use this to refresh the noise level to 1 for each round key byte generated
         let f = |x| x as u64;
+        let lut = gen_lut(message_mod, carry_mod, poly_size, 8, f);
     
         // Copy the original key into the first `nk` words
         for i in 0..nk {
@@ -248,30 +120,32 @@ impl Server {
             w.push(word);
         }
     
+        // Key expansion algorithm
         for i in nk..nb * (nr + 1) {
             let mut temp = w[i - 1].clone();
             if i % nk == 0 {
+                // We rotate word temp and apply sbox
                 temp = fhe_rot_word(&temp);
                 fhe_sub_word(&self.wopbs_key, &self.wopbs_key_short, &mut temp);
+
+                // We encrypt RCON using public key
                 let rcon_byte= RCON[(i / nk) - 1] as u64;
                 let encrypted_rcon = &self.public_key.encrypt_radix_without_padding(rcon_byte as u64, 8);
+
+                // We add the rcon byte to the first byte of temp
                 temp[0] = self.sks.unchecked_add(&temp[0], &encrypted_rcon);
             }
             let mut new_words = Vec::new();
-    
+            // we generate new words for round keys
             for j in 0..4 {
-                let lut = gen_lut(message_mod, carry_mod, poly_size, 8, f);
-                // let refresh_ct = wopbs_key.wopbs_without_padding(&w[i - nk][j], &lut);
-                // w[i - nk][j] = refresh_ct;
-    
-    
                 let new_word = &self.sks.unchecked_add(&w[i - nk][j], &temp[j]);
+                // we refresh the noise level to 1
                 let refresh_ct = self.wopbs_key.wopbs_without_padding(new_word, &lut);
                 new_words.push(refresh_ct);
             }
             w.push(new_words);
         }
-    
+        // Each word stored in w has a noise level of 1.
         // Combine every 4 words into a single round key
         let mut round_keys = Vec::new();
         for i in 0..=nr {
@@ -284,8 +158,116 @@ impl Server {
     
         round_keys
     }
+
+    /*  adds a scalar to the state, used for (iv + i) step before AES encryption. This implementation is very inefficient
+    due to the need of circuit bootstrapping (CBS) for each byte addition. Ideally you would compute this (iv + i) in a PBS paramter-set and keyswitch to the WoPBS paramter-set to do AES encryption, but not sure if this is feasible with 
+    the WoPBS paramters I've chosen.  */
+    pub fn add_scalar(&self, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, i: u128) {
+        // we convert index i to a vector of bytes from MSB to LSB.
+        let mut i_blocks = vec![];
+        for j in (0..16).rev() {
+            let block = ((i >> (8 * j)) & 0xFF) as u64;
+            i_blocks.push(block);
+        }
+
+        // f function for addition result and g function for carry computation
+        let f = |x| -> u64 { (x + i as u64) % 256 };
+        let g = |x| -> u64 { if x + i as u64 > 255 { 1 } else { 0 } };
+        let lut_f = gen_lut(
+            self.wopbs_key_short.param.message_modulus.0 as usize,
+            self.wopbs_key_short.param.carry_modulus.0 as usize,
+            self.wopbs_key_short.param.polynomial_size.0,
+            8,
+            f,
+        );
+        let lut_g = gen_lut(
+            self.wopbs_key_short.param.message_modulus.0 as usize,
+            self.wopbs_key_short.param.carry_modulus.0 as usize,
+            self.wopbs_key_short.param.polynomial_size.0,
+            8,
+            g,
+        );
+        let luts = vec![lut_f, lut_g];
+
+        // we use many wopbs to compute the two luts for the cost of 1 CBS
+        let results = many_wopbs_without_padding(state.last_mut().unwrap(), &self.wopbs_key_short, luts);
+
+        // our new_state which will hold iv + i at the end.
+        let mut new_state = Vec::new();
+        new_state.push(results[0].clone());
+
+        // our carrys generated at each step
+        let carry = results[1].blocks()[0].clone();
+        let mut carrys = Vec::new();
+        carrys.push(carry);
+
+        let mut c = 0;
+        // We iterate through the state from LSB to MSB
+        for index in (0..15).rev() {
+
+            // We create a radix ciphertext of 9 blocks, where the first 8 blocks are the state and the last block is the carry
+            let blocks = state[index].blocks();
+            let mut new_blocks = Vec::new();
+            for block in blocks.iter() {
+                new_blocks.push(block.clone());
+            }
+            new_blocks.push(carrys[c].clone());
+            let mut new_radix = BaseRadixCiphertext::from_blocks(new_blocks);
+
+            // same as before, but the difference is we compute two 9-9 luts, where the first 8 bits are the state and the last bit is the carry
+            let fp = |x: u64| -> u64 {
+                ((x & 0xFF) + ((x >> 8) & 0x1) + (i_blocks[index])) % 256
+            };
+            let gp = |x: u64| -> u64 {
+                if ((x & 0xFF) + ((x >> 8) & 0x1) + (i_blocks[index])) > 255 {
+                    1
+                } else {
+                    0
+                }
+            };
+            let lut_fp = gen_lut(
+                self.wopbs_key_short.param.message_modulus.0 as usize,
+                self.wopbs_key_short.param.carry_modulus.0 as usize,
+                self.wopbs_key_short.param.polynomial_size.0,
+                9,
+                fp,
+            );
+            let lut_gp = gen_lut(
+                self.wopbs_key_short.param.message_modulus.0 as usize,
+                self.wopbs_key_short.param.carry_modulus.0 as usize,
+                self.wopbs_key_short.param.polynomial_size.0,
+                9,
+                gp,
+            );
+        
+            // Use many_wopbs_without_padding
+            let luts = vec![lut_fp, lut_gp];
+            let resultsp = many_wopbs_without_padding(&mut new_radix, &self.wopbs_key_short, luts);
+
+            // we push the result of the addition to our new_state and store the carry for the next step
+            let res_blocks = resultsp[0].blocks();
+            let mut new_blocks = Vec::new();
+            for i in 0..res_blocks.len()-1 {
+                new_blocks.push(res_blocks[i].clone());
+            }
+            let new_radix_block = BaseRadixCiphertext::from_blocks(new_blocks);
+
+            new_state.push(new_radix_block);
+            carrys.push(resultsp[1].blocks()[0].clone());
+            c += 1;
+
+        }
+
+        // reverse vector new_state to store from MSB to LSB
+        new_state.reverse();
+
+        
+    
+        *state = new_state;
+    }
 }
 
+// Simple addition of round key to state, which is an XOR since there is no carry and bit of padding.
 fn add_round_key(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, round_key: &Vec<BaseRadixCiphertext<Ciphertext>>) {
     for (state_byte, round_key_byte) in state.iter_mut().zip(round_key.iter()) {
         sks.unchecked_add_assign(state_byte, round_key_byte);
