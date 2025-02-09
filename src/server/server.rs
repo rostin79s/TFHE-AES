@@ -40,7 +40,7 @@ impl Server {
         
         // self.sks.unchecked_add_assign(state.last_mut().unwrap(), &encrypted_i);
 
-        let rounds = 3;
+        let rounds = 10;
 
         let zero = self.public_key.encrypt_radix_without_padding(0 as u64,8); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????
 
@@ -109,11 +109,12 @@ impl Server {
         // state.par_iter_mut().for_each(|byte_ct| {
         //     sbox(&self.wopbs_key_short, byte_ct, false);
         // });
-        // for byte_ct in state.iter_mut() {
-        //     key_sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct);
-        // }
-        // shift_rows(state);
-        // add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
+
+        for byte_ct in state.iter_mut() {
+            key_sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct);
+        }
+        shift_rows(state);
+        add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
     }
 
     pub fn aes_decrypt(&self, encrypted_round_keys: &Vec<Vec<BaseRadixCiphertext<Ciphertext>>>, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>){

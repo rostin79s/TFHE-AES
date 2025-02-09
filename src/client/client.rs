@@ -27,30 +27,32 @@ use aes::cipher::{
 
 
 // Used concrete-optimizer to find paramter-set that gives 128 bit security and 
-// failure probability of 7.5e-20 = 2^-64
+// failure probability of 6.1e-20 = 2^-64
+// log norm2 = 5
+// max noise = sqrt(2^5) = 5
 // https://github.com/zama-ai/concrete/tree/main/compilers/concrete-optimizer
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
-    lwe_dimension: LweDimension(631),
-    glwe_dimension: GlweDimension(1),
-    polynomial_size: PolynomialSize(256),
+    lwe_dimension: LweDimension(669),
+    glwe_dimension: GlweDimension(4),
+    polynomial_size: PolynomialSize(512),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
     )),
     glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.162026630747649e-16,
     )),
-    pbs_base_log: DecompositionBaseLog(12),
-    pbs_level: DecompositionLevelCount(3),
+    pbs_base_log: DecompositionBaseLog(8),
+    pbs_level: DecompositionLevelCount(5),
     ks_level: DecompositionLevelCount(6),
     ks_base_log: DecompositionBaseLog(2),
-    pfks_level: DecompositionLevelCount(2),
-    pfks_base_log: DecompositionBaseLog(16),
+    pfks_level: DecompositionLevelCount(3),
+    pfks_base_log: DecompositionBaseLog(12),
     pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.162026630747649e-16,
     )),
-    cbs_level: DecompositionLevelCount(2),
-    cbs_base_log: DecompositionBaseLog(9),
+    cbs_level: DecompositionLevelCount(1),
+    cbs_base_log: DecompositionBaseLog(15),
     message_modulus: MessageModulus(2),
     carry_modulus: CarryModulus(1),
     ciphertext_modulus: CiphertextModulus::new_native(),
@@ -90,7 +92,7 @@ impl Client {
             ks_level: wopbs_params.ks_level,
             message_modulus: wopbs_params.message_modulus,
             carry_modulus: wopbs_params.carry_modulus,
-            max_noise_level: MaxNoiseLevel::new(8),
+            max_noise_level: MaxNoiseLevel::new(5),
             log2_p_fail: 1.0,
             ciphertext_modulus: wopbs_params.ciphertext_modulus,
             encryption_key_choice: wopbs_params.encryption_key_choice,
@@ -125,12 +127,9 @@ impl Client {
 
     pub fn client_encrypt(&self) -> (RadixClientKey, PublicKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
         // Client encrypts key and sends to server.
-        let key: u128 = 0;
-        // iv = 00000101030307070f0f1f1f3f3f7f7f
-        let iv: u128 = 0x00000101030307070f0f1f1f3f3f7f7f; 
         let mut encrypted_key: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
         for byte_idx in (0..16).rev() { 
-            let byte = (key >> (byte_idx * 8)) & 0xFF;
+            let byte = (self.key >> (byte_idx * 8)) & 0xFF;
             encrypted_key.push(self.cks.encrypt_without_padding(byte as u64));
         }
 
@@ -139,7 +138,7 @@ impl Client {
         // Client encrypts iv and sends to server.
         let mut encrypted_iv = Vec::new();
         for byte_idx in (0..16).rev() {
-            let byte = (iv >> (byte_idx * 8)) & 0xFF;
+            let byte = (self.iv >> (byte_idx * 8)) & 0xFF;
             encrypted_iv.push(self.cks.encrypt_without_padding(byte as u64));
         }
 
