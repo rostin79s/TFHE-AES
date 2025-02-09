@@ -1,11 +1,8 @@
 
-use tfhe::integer::{
-    IntegerCiphertext,
-    wopbs::{
-        IntegerWopbsLUT,
-        PlaintextCount, 
-        CiphertextCount
-    }
+use tfhe::integer::wopbs::{
+    IntegerWopbsLUT,
+    PlaintextCount, 
+    CiphertextCount
 };
 
 pub fn gen_lut<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_block: usize, f: F) -> IntegerWopbsLUT 

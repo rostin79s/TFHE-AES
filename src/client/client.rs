@@ -147,6 +147,7 @@ impl Client {
 
     pub fn client_decrypt_and_verify(&self, vec_fhe_encrypted_state: &mut Vec<Vec<BaseRadixCiphertext<Ciphertext>>>
     ){
+        assert!(vec_fhe_encrypted_state.len() == self.number_of_outputs);
         for (index, fhe_encrypted_state) in vec_fhe_encrypted_state.iter().enumerate() {
             let message = self.iv + index as u128;
             let mut encrypted_message_bytes: Vec<u8> = Vec::new();

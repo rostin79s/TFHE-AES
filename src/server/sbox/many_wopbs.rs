@@ -27,26 +27,22 @@ use dyn_stack::PodStack;
 
 // This function executes multiple look up tables with only one Circuit Bootstrapping operation (CBS).
 // We Copied the source code and seperated the CBS and Vertical Packing operations.
+// difference is instead of one lut and one output_cbs_vp_ct, we have vectors.
 pub fn many_wopbs_without_padding(ct_in: &mut BaseRadixCiphertext<Ciphertext>, wopbs_key_short: &WopbsKey, luts: Vec<IntegerWopbsLUT>) -> Vec<BaseRadixCiphertext<Ciphertext>> {
     let extracted_bits = custom_extract_bits(ct_in, wopbs_key_short);
 
     let sks = &wopbs_key_short.wopbs_server_key;
     let fourier_bsk = &sks.bootstrapping_key;
-
     
     let mut vec_poly_lut: Vec<PolynomialList<&[u64]>> = Vec::new();
     let mut vec_output_cbs_vp_ct: Vec<LweCiphertextList<Vec<u64>>> = Vec::new();
-    let mut acc_luts: Vec<PlaintextList<&[u64]>> = Vec::new();
+    let mut ptxt_luts: Vec<PlaintextList<&[u64]>> = Vec::new();
     for i in 0..luts.len() {
-        acc_luts.push(luts[i].as_ref().lut());
+        ptxt_luts.push(luts[i].as_ref().lut());
     }
     for i in 0..luts.len() {
-        // let extracted_bits = &extracted_bits_blocks;
         let lut_size = luts[i].as_ref().output_ciphertext_count().0;
         let count = LweCiphertextCount(lut_size);
-
-
-        
 
         let output_lwe_size = fourier_bsk.output_lwe_dimension().to_lwe_size();
 
@@ -60,28 +56,16 @@ pub fn many_wopbs_without_padding(ct_in: &mut BaseRadixCiphertext<Ciphertext>, w
 
 
         let poly_lut =
-            PolynomialListView::from_container(acc_luts[i].as_ref(), fourier_bsk.polynomial_size());
+            PolynomialListView::from_container(ptxt_luts[i].as_ref(), fourier_bsk.polynomial_size());
             
         vec_poly_lut.push(poly_lut);
     }
 
-    
-
     let fft = Fft::new(fourier_bsk.polynomial_size());
     let fft = fft.as_view();
-
-
-
-
     let mut buffers = ComputationBuffers::new();
-
     custom_set_buffers(&mut buffers, &fourier_bsk, &wopbs_key_short, &vec_poly_lut, &extracted_bits, &vec_output_cbs_vp_ct, &fft);
     
-
-  
-
-
-    use tfhe::shortint::server_key::ShortintBootstrappingKey;
     match &sks.bootstrapping_key {
         ShortintBootstrappingKey::Classic(bsk) => {
             many_circuit_bootstrap_boolean_vertical_packing(
@@ -99,7 +83,6 @@ pub fn many_wopbs_without_padding(ct_in: &mut BaseRadixCiphertext<Ciphertext>, w
         ShortintBootstrappingKey::MultiBit { .. } => {
         }
     };
-   
 
     let mut out_list: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
     for (i,output_list) in vec_output_cbs_vp_ct.iter().enumerate() {
@@ -129,16 +112,12 @@ pub fn many_wopbs_without_padding(ct_in: &mut BaseRadixCiphertext<Ciphertext>, w
         out_list.push(out);
 
     }
-
-
-    
-    
     return out_list;
 }
 
 
 
-// &mut buffers, &fourier_bsk, &wopbs_key_short, &lut, &extracted_bits, &output_cbs_vp_ct, &fft
+// Setting buffers for the circuit bootstrapping and vertical packing operations.
 pub fn custom_set_buffers(buffers: &mut ComputationBuffers, fourier_bsk: &ShortintBootstrappingKey, wopbs_key_short: &WopbsKey, vec_poly_lut: &Vec<PolynomialList<&[u64]>>, extracted_bits: &LweCiphertextList<Vec<u64>>, vec_output_cbs_vp_ct: &Vec<LweCiphertextList<Vec<u64>>>, fft: &FftView){
 
     let buffer_size_req =
@@ -165,15 +144,15 @@ pub fn custom_set_buffers(buffers: &mut ComputationBuffers, fourier_bsk: &Shorti
     buffers.resize(buffer_size_req);
 
 
-    // // now we resize for the rest of the vertical packings.
-    // for i in 1..vec_poly_lut.len() {
-    //     let stack = tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::vertical_packing_scratch::<u64>(
-    //         fourier_bsk.glwe_size(), wopbs_key_short.cbs_pfpksk.output_polynomial_size(), vec_poly_lut[i].polynomial_count(), extracted_bits.lwe_ciphertext_count().0, *fft
-    //     );
+    // now we resize for the rest of the vertical packings.
+    for i in 1..vec_poly_lut.len() {
+        let stack = tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::vertical_packing_scratch::<u64>(
+            fourier_bsk.glwe_size(), wopbs_key_short.cbs_pfpksk.output_polynomial_size(), vec_poly_lut[i].polynomial_count(), extracted_bits.lwe_ciphertext_count().0, *fft
+        );
 
-    //     let buffer_size_req = buffer_size_req.max(stack.unwrap().unaligned_bytes_required());
-    //     buffers.resize(buffer_size_req);
-    // }
+        let buffer_size_req = buffer_size_req.max(stack.unwrap().unaligned_bytes_required());
+        buffers.resize(buffer_size_req);
+    }
 
 }
 
