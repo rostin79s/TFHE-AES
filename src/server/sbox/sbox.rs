@@ -46,7 +46,7 @@ pub fn key_sbox(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &tf
         wopbs_key_short.param.message_modulus.0 as usize,
         wopbs_key_short.param.carry_modulus.0 as usize,
         wopbs_key_short.param.polynomial_size.0,
-        ct_in,
+        8,
         f,
     );
     let ct_res = wopbs_key.wopbs_without_padding(ct_in, &lut);
@@ -75,14 +75,17 @@ pub fn sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Cipherte
             wopbs_key_short.param.message_modulus.0 as usize,
             wopbs_key_short.param.carry_modulus.0 as usize,
             wopbs_key_short.param.polynomial_size.0,
-            ct_in,
+            8,
             *f,
         );
         luts.push(lut);
     }
+    let out_list = many_wopbs_without_padding(ct_in, wopbs_key_short, luts);
+    return out_list;
+}
 
 
-
+pub fn many_wopbs_without_padding(ct_in: &mut BaseRadixCiphertext<Ciphertext>, wopbs_key_short: &WopbsKey, luts: Vec<IntegerWopbsLUT>) -> Vec<BaseRadixCiphertext<Ciphertext>> {
     let extracted_bits = custom_extract_bits(ct_in, wopbs_key_short);
 
     let sks = &wopbs_key_short.wopbs_server_key;
@@ -201,8 +204,6 @@ pub fn sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Cipherte
     
     
     return out_list;
-
-    // println!("Sbox: {:?}", start.elapsed());
 }
 
 use tfhe::shortint::server_key::ShortintBootstrappingKey;

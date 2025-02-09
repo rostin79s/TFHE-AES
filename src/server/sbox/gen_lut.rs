@@ -8,17 +8,15 @@ use tfhe::integer::{
     }
 };
 
-pub fn gen_lut<F, T>(message_mod: usize, carry_mod: usize, poly_size: usize, ct: &T, f: F) -> IntegerWopbsLUT 
+pub fn gen_lut<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_block: usize, f: F) -> IntegerWopbsLUT 
     where
-        F: Fn(u64) -> u64,
-        T: IntegerCiphertext,
+        F: Fn(u64) -> u64
     {
         let log_message_modulus =
             f64::log2((message_mod) as f64) as u64;
         let log_carry_modulus = f64::log2((carry_mod) as f64) as u64;
         let log_basis = log_message_modulus + log_carry_modulus;
         let delta = 64 - log_basis;
-        let nb_block = ct.blocks().len();
         let poly_size = poly_size;
         let mut lut_size = 1 << (nb_block * log_basis as usize);
         if lut_size < poly_size {

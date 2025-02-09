@@ -66,7 +66,7 @@ fn main() {
         
         let mut state = encrypted_iv.clone();
 
-        server_obj.aes_encrypt(&encrypted_round_keys, &mut state, i as u64);
+        server_obj.aes_encrypt(&encrypted_round_keys, &mut state, i as u128);
 
         let elapsed = start.elapsed();
         println!("Time taken for aes encryption: {:?}", elapsed);
