@@ -1,10 +1,10 @@
 // use crate::tables::table::SBOX;
-use crate::server::sbox::sbox::sbox;
+use crate::server::sbox::sbox::key_sbox;
 
 use tfhe::{
     shortint::Ciphertext,
+    shortint::wopbs::WopbsKey,
     integer::{
-        wopbs::WopbsKey,
         ciphertext::BaseRadixCiphertext,
     }
 };
@@ -21,10 +21,10 @@ pub fn fhe_rot_word(word: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<BaseRadi
     result
 }
 
-pub fn fhe_sub_word(wopbs_key: &WopbsKey, word: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
+pub fn fhe_sub_word(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &WopbsKey, word: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
     for i in 0..4 {
         let start = std::time::Instant::now();
-        sbox(wopbs_key, &mut word[i], false);
+        key_sbox(wopbs_key, wopbs_key_short, &mut word[i]);
         println!("Sbox: {:?}", start.elapsed());
     }
 

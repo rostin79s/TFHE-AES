@@ -42,9 +42,9 @@ fn main() {
 
     let client_obj = Client::new(number_of_outputs, iv, key);
 
-    let (public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
+    let (client_key, public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
 
-    let server_obj = Server::new(public_key, server_key, wopbs_key);
+    let server_obj = Server::new(client_key, public_key, server_key, wopbs_key);
 
     let start = std::time::Instant::now();
 

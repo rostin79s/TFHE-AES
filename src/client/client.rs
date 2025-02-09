@@ -33,7 +33,7 @@ pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
     lwe_dimension: LweDimension(631),
     glwe_dimension: GlweDimension(1),
-    polynomial_size: PolynomialSize(512),
+    polynomial_size: PolynomialSize(256),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
     )),
@@ -123,11 +123,14 @@ impl Client {
         }
     }
 
-    pub fn client_encrypt(&self) -> (PublicKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
+    pub fn client_encrypt(&self) -> (RadixClientKey, PublicKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
         // Client encrypts key and sends to server.
+        let key: u128 = 0;
+        // iv = 00000101030307070f0f1f1f3f3f7f7f
+        let iv: u128 = 0x00000101030307070f0f1f1f3f3f7f7f; 
         let mut encrypted_key: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
         for byte_idx in (0..16).rev() { 
-            let byte = (self.key >> (byte_idx * 8)) & 0xFF;
+            let byte = (key >> (byte_idx * 8)) & 0xFF;
             encrypted_key.push(self.cks.encrypt_without_padding(byte as u64));
         }
 
@@ -136,7 +139,7 @@ impl Client {
         // Client encrypts iv and sends to server.
         let mut encrypted_iv = Vec::new();
         for byte_idx in (0..16).rev() {
-            let byte = (self.iv >> (byte_idx * 8)) & 0xFF;
+            let byte = (iv >> (byte_idx * 8)) & 0xFF;
             encrypted_iv.push(self.cks.encrypt_without_padding(byte as u64));
         }
 
@@ -152,7 +155,7 @@ impl Client {
 
         
     
-        (public_key, self.sks.clone(), self.wopbs_key.clone(), encrypted_iv, encrypted_key)
+        (self.cks.clone(), public_key, self.sks.clone(), self.wopbs_key.clone(), encrypted_iv, encrypted_key)
     }
 
     pub fn client_decrypt_and_verify(&self, index: usize,

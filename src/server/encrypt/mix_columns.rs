@@ -2,59 +2,75 @@ use tfhe::integer::IntegerCiphertext;
 use tfhe::shortint::Ciphertext;
 use tfhe::integer::{ServerKey, ciphertext::BaseRadixCiphertext};
 
-pub fn mix_columns(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext>>, zero: &BaseRadixCiphertext<Ciphertext>) {
-    assert!(state.len() == 16, "State must have exactly 16 ciphertexts (16 bytes).");
+pub fn mix_columns(sks: &ServerKey, mul_sbox_state: &mut Vec<Vec<BaseRadixCiphertext<Ciphertext>>>, zero: &BaseRadixCiphertext<Ciphertext>) -> Vec<BaseRadixCiphertext<Ciphertext>> {
+    assert!(mul_sbox_state.len() == 16, "State must have exactly 16 ciphertexts (16 bytes).");
 
+    // Row 2: Shift left by 1
+    mul_sbox_state.swap(1, 5);
+    mul_sbox_state.swap(5, 9);
+    mul_sbox_state.swap(9, 13);
+
+    // Row 3: Shift left by 2
+    mul_sbox_state.swap(2, 10);
+    mul_sbox_state.swap(6, 14);
+
+    // Row 4: Shift left by 3
+    mul_sbox_state.swap(3, 15);
+    mul_sbox_state.swap(15, 11);
+    mul_sbox_state.swap(11, 7);
+
+    let mut state: Vec<BaseRadixCiphertext<Ciphertext>> = vec![];
     for col in 0..4 {
         let base = col * 4;
-        
-        let s0 = state[base].clone();
-        let s1 = state[base + 1].clone();
-        let s2 = state[base + 2].clone();
-        let s3 = state[base + 3].clone();
+
+        let s0 = &mul_sbox_state[base];
+        let s1 = &mul_sbox_state[base + 1];
+        let s2 = &mul_sbox_state[base + 2];
+        let s3 = &mul_sbox_state[base + 3];
 
         // Perform MixColumns transformation on this column
-        state[base] = sks.unchecked_add(
-            &mul2(sks, &s0, zero), 
+        state.push(sks.unchecked_add(
+            &s0[1], // mul2(s0)
             &sks.unchecked_add(
-                &mul3(sks, &s1, zero), 
-                &sks.unchecked_add(&s2, &s3)
+                &s1[2], // mul3(s1)
+                &sks.unchecked_add(&s2[0], &s3[0])
             )
-        );
+        ));
 
-        state[base + 1] = sks.unchecked_add(
-            &s0,
+        state.push(sks.unchecked_add(
+            &s0[0],
             &sks.unchecked_add(
-                &mul2(sks, &s1, zero),
+                &s1[1], // mul2(s1)
                 &sks.unchecked_add(
-                    &mul3(sks, &s2, zero),
-                    &s3
+                    &s2[2], // mul3(s2)
+                    &s3[0]
                 )
             )
-        );
+        ));
 
-        state[base + 2] = sks.unchecked_add(
-            &s1,
+        state.push(sks.unchecked_add(
+            &s0[0],
             &sks.unchecked_add(
-                &s0,
+                &s1[0],
                 &sks.unchecked_add(
-                    &mul2(sks, &s2, zero),
-                    &mul3(sks, &s3, zero)
+                    &s2[1], // mul2(s2)
+                    &s3[2]  // mul3(s3)
                 )
             )
-        );
+        ));
 
-        state[base + 3] = sks.unchecked_add(
-            &mul2(sks, &s3, zero),
+        state.push(sks.unchecked_add(
+            &s0[2], // mul3(s0)
             &sks.unchecked_add(
-                &s2,
+                &s1[0],
                 &sks.unchecked_add(
-                    &s1,
-                    &mul3(sks, &s0, zero)
+                    &s2[0],
+                    &s3[1]  // mul2(s3)
                 )
             )
-        );
+        ));
     }
+    return state;
 }
 
 fn mul2(sks: &ServerKey, ct: &BaseRadixCiphertext<Ciphertext>, zero: &BaseRadixCiphertext<Ciphertext>) -> BaseRadixCiphertext<Ciphertext> {

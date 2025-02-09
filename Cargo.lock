@@ -7,10 +7,13 @@ name = "aes"
 version = "0.1.0"
 dependencies = [
  "aes 0.8.4",
+ "aligned-vec",
  "clap",
+ "dyn-stack",
  "rand",
  "rayon",
  "tfhe",
+ "tfhe-fft",
 ]
 
 [[package]]
