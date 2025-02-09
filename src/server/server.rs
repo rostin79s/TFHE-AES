@@ -40,7 +40,7 @@ impl Server {
         
         // self.sks.unchecked_add_assign(state.last_mut().unwrap(), &encrypted_i);
 
-        let rounds = 2;
+        let rounds = 3;
 
         let zero = self.public_key.encrypt_radix_without_padding(0 as u64,8); //  THIS NEEDS TO BE FIXED ???????????????????????????????????????????????????????????
 
@@ -53,17 +53,13 @@ impl Server {
                 let mul_sbox_byte = sbox(&self.wopbs_key_short, byte_ct, false);
                 mul_sbox_state.push(mul_sbox_byte);
             }
-
-            for byte_ct in state.iter_mut() {
-            key_sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct);
-            }
             
             
             for (i, byte_vec) in mul_sbox_state.iter().enumerate() {
                 let byte: u64 = self.cks.decrypt_without_padding(&byte_vec[0]);
-                // let mul2: u64 = self.cks.decrypt(&byte_vec[1]);
-                // let mul3: u64 = self.cks.decrypt(&byte_vec[2]);
-                println!("Byte {}: {}", i, byte);
+                let mul2: u64 = self.cks.decrypt_without_padding(&byte_vec[1]);
+                let mul3: u64 = self.cks.decrypt_without_padding(&byte_vec[2]);
+                println!("Byte {}: {}, mul2: {}, mul3: {}", i, byte, mul2, mul3);
             }
         
 
@@ -76,8 +72,37 @@ impl Server {
 
 
             // shift_rows(&mut mul_sbox_state);
-            // let mut state = mix_columns(&self.sks, &mut mul_sbox_state, &zero);
-            // add_round_key(&self.sks, &mut state, &encrypted_round_keys[round]);
+            let mut new_state = mix_columns(&self.sks, &mut mul_sbox_state, &zero);
+
+            for (i, byte_vec) in new_state.iter().enumerate() {
+                let byte: u64 = self.cks.decrypt_without_padding(&byte_vec);
+                println!(
+                    "Byte {:02X}: {:02X}", 
+                    i, byte
+                );
+            }
+            add_round_key(&self.sks, &mut new_state, &encrypted_round_keys[round]);
+
+            // decrypt each round key byte and combine to 128 bit and print in hex format
+            let mut round_key: u128 = 0;
+            for byte in encrypted_round_keys[round].iter() {
+                let byte_val: u128 = self.cks.decrypt_without_padding(byte);
+                round_key = (round_key << 8) | byte_val;
+            }
+            println!("Round Key {}: {:032X}", round, round_key);
+
+
+            
+            
+
+            for (i, byte_vec) in new_state.iter().enumerate() {
+                let byte: u64 = self.cks.decrypt_without_padding(&byte_vec);
+                println!(
+                    "Byte {:02X}: {:02X}", 
+                    i, byte
+                );
+            }
+            *state = new_state;
         }
 
     
@@ -133,9 +158,9 @@ impl Server {
         let nr = 10; // Number of rounds for AES-128
         let mut w = Vec::new(); // Word array to hold expanded keys
     
-        let message_mod = 2;
-        let carry_mod = 1;
-        let poly_size = 512;
+        let message_mod = self.wopbs_key_short.param.message_modulus.0 as usize;
+        let carry_mod = self.wopbs_key_short.param.carry_modulus.0 as usize;
+        let poly_size = self.wopbs_key_short.param.polynomial_size.0;
         let f = |x| x as u64;
     
         // Copy the original key into the first `nk` words

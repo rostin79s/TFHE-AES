@@ -65,8 +65,8 @@ pub fn sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Cipherte
         functions.push(|x| mul14(INV_SBOX[x as usize] as u8) as u64);
     } else {
         functions.push(|x| SBOX[x as usize] as u64);
-        // functions.push(|x| SBOX[x as usize] as u8 as u64);
-        // functions.push(|x| SBOX[x as usize] as u8 as u64);
+        functions.push(|x| mul2(SBOX[x as usize] as u8) as u64);
+        functions.push(|x| mul3(SBOX[x as usize] as u8) as u64);
     }
 
 
@@ -139,28 +139,28 @@ pub fn sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Cipherte
     use tfhe::shortint::server_key::ShortintBootstrappingKey;
     match &sks.bootstrapping_key {
         ShortintBootstrappingKey::Classic(bsk) => {
-            circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized(
-                &extracted_bits,
-                &mut vec_output_cbs_vp_ct[0],
-                &vec_poly_lut[0],
-                bsk,
-                &wopbs_key_short.cbs_pfpksk,
-                wopbs_key_short.param.cbs_base_log,
-                wopbs_key_short.param.cbs_level,
-                fft,
-                buffers.stack(),
-            );
-            // many_circuit_bootstrap_boolean_vertical_packing(
-            //     vec_poly_lut,
-            //     bsk.as_view(),
-            //     vec_output_cbs_vp_ct.iter_mut().map(|x| x.as_mut_view()).collect(),
-            //     extracted_bits.as_view(),
-            //     wopbs_key_short.cbs_pfpksk.as_view(),
-            //     wopbs_key_short.param.cbs_level,
+            // circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized(
+            //     &extracted_bits,
+            //     &mut vec_output_cbs_vp_ct[0],
+            //     &vec_poly_lut[0],
+            //     bsk,
+            //     &wopbs_key_short.cbs_pfpksk,
             //     wopbs_key_short.param.cbs_base_log,
+            //     wopbs_key_short.param.cbs_level,
             //     fft,
             //     buffers.stack(),
             // );
+            many_circuit_bootstrap_boolean_vertical_packing(
+                vec_poly_lut,
+                bsk.as_view(),
+                vec_output_cbs_vp_ct.iter_mut().map(|x| x.as_mut_view()).collect(),
+                extracted_bits.as_view(),
+                wopbs_key_short.cbs_pfpksk.as_view(),
+                wopbs_key_short.param.cbs_level,
+                wopbs_key_short.param.cbs_base_log,
+                fft,
+                buffers.stack(),
+            );
         }
         ShortintBootstrappingKey::MultiBit { .. } => {
             // return Err(WopbsKeyCreationError::UnsupportedMultiBit);
