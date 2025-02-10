@@ -1,6 +1,6 @@
 # **Fully Homomorphic Encryption (FHE) Implementation of AES-128 using TFHE-rs**
 
-This repository contains a full Implementation of a fully holomorphic version of the AES-128 cryptosystem in CTR mode, using TFHE.
+This repository contains a full Implementation of a fully homomorphic version of the AES-128 cryptosystem in CTR mode, using TFHE.
 
 
 ---
