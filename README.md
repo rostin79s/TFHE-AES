@@ -41,13 +41,34 @@ project_root/
 │   │   ├── sbox/
 │   │   └── mod.rs
 ```
-The client.rs has a Client struct, which generates the parameters and FHE keys when a client object is created and initialized.
-It also has an encrypt function where you FHE encrypt the message (in the case of AES CTR we name it iv), and the AES key, sends these and
-the FHE keys needed for the hypothetical server.
 
-server.rs has a Server struct, which initializes by setting the FHE keys received from the client. It has 3 main functions to use, 'aes_key_expansion', 'aes_encryption'
-and 'aes_decryption'. First, the key expansion must be called on the FHE encrypted AES key, and return 11 FHE encrypted round keys. You then call the encryption function by passing the round keys and the FHE encrypted message (iv) received from the client. Similarly, you can homomorphically decrypt an AES ciphertext by calling the decryption function. Each folder in the server directory has primitives needed for each function and operation.
+### **Client**
 
----
+The `client.rs` file defines a `Client` struct that performs the following functions:
+
+- **Client Initialization:** When a `Client` object is created, it generates the parameters and the necessary FHE keys.
+- **Encrypt:** The `encrypt` function is responsible for FHE-encrypting the message (referred to as `iv` in the case of AES CTR) and the AES key. It then sends the encrypted values, along with the FHE keys, to the server.
+
+
+
+### **Server**
+
+The `server.rs` file defines a `Server` struct which initializes with the FHE keys received from the client. It exposes three main functions:
+
+- **aes_key_expansion:** This function expands the FHE-encrypted AES key and returns 11 FHE-encrypted round keys.
+- **aes_encryption:** Using the round keys and the FHE-encrypted message (`iv`), this function performs AES encryption.
+- **aes_decryption:** This function performs homomorphic decryption of the AES ciphertext.
+
+
+
+### **Helper Functions**
+
+The `server` directory contains several folders, each containing primitives necessary for performing specific functions and operations related to AES encryption/decryption. These include:
+
+- **Decrypt and Encrypt Folders:** Implement the (inverse) mix columns and (inverse) shift rows functions required for AES encryption and decryption.
+- **Key Expansion Folder:** Contains helper functions for the key expansion algorithm, such as bitwise rotations and S-box evaluation on words.
+- **Sbox Folder:** Implements the S-box function and contains the helper functions required for the S-box operations.
+
+
 ## **Implementation techniques**
 
