@@ -16,7 +16,7 @@ cargo build
 cargo run --release -- --number-of-outputs <NUM_OUTPUTS> --iv <IV_VALUE> --key <KEY_VALUE>
 ```
 The command arguments are given in integer format. The main function executes
-AES CTR mode in FHE for the number of outputs given, encrypting from iv to iv + n-1, and verifies the correctness using the 'aes' crate [here](https://crates.io/crates/aes)
+AES CTR mode in FHE for the number of outputs given, FHE encrypting messages iv ... iv + n-1, and verifies the correctness using the 'aes' crate [here](https://crates.io/crates/aes)
 .
 
 ---
