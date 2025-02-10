@@ -5,7 +5,7 @@ This repository contains a full Implementation of a fully homomorphic version of
 
 ---
 
-## **Build and run binary**
+## **Build and Execute**
 
 Clone the repository and run in release mode
 
