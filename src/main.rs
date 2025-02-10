@@ -31,7 +31,9 @@ struct Args {
 
 // Main function to run the FHE AES CTR encryption. All functions, AES key expansion, encryption and decryption are run single threaded. Only CTR is parallelized.
 fn main() {
-    test();
+    // Uncomment to run correctness tests
+    
+    // test();
 
     let args = Args::parse();
 
