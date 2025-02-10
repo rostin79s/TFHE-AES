@@ -41,9 +41,15 @@ pub fn mul14(x: u8) -> u8 {
 }
 
 
-// Sbox evaluation used in Key Expansion using wopbs.
-pub fn sbox(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &tfhe::shortint::wopbs::WopbsKey, ct_in: &mut BaseRadixCiphertext<Ciphertext>){
-    let f = |x| SBOX[x as usize] as u64;
+// Sbox evaluation used using wopbs.
+pub fn sbox(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &tfhe::shortint::wopbs::WopbsKey, ct_in: &mut BaseRadixCiphertext<Ciphertext>, inv: bool){
+    let f: fn(u64) -> u64;
+    if inv{
+        f = |x: u64| INV_SBOX[x as usize] as u64;
+    }
+    else{
+        f = |x: u64| SBOX[x as usize] as u64;
+    }
     let lut = gen_lut(
         wopbs_key_short.param.message_modulus.0 as usize,
         wopbs_key_short.param.carry_modulus.0 as usize,
@@ -64,10 +70,10 @@ pub fn many_sbox(wopbs_key_short: &WopbsKey, ct_in: &mut BaseRadixCiphertext<Cip
     let mut luts: Vec<IntegerWopbsLUT> = vec![];
 
     if inv {
-        functions.push(|x| mul9(INV_SBOX[x as usize] as u8) as u64);
-        functions.push(|x| mul11(INV_SBOX[x as usize] as u8) as u64);
-        functions.push(|x| mul13(INV_SBOX[x as usize] as u8) as u64);
-        functions.push(|x| mul14(INV_SBOX[x as usize] as u8) as u64);
+        functions.push(|x| mul9(x as u8) as u64);
+        functions.push(|x| mul11(x as u8) as u64);
+        functions.push(|x| mul13(x as u8) as u64);
+        functions.push(|x| mul14(x as u8) as u64);
     } else {
         functions.push(|x| SBOX[x as usize] as u64);
         functions.push(|x| mul2(SBOX[x as usize] as u8) as u64);

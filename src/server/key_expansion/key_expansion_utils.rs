@@ -23,6 +23,6 @@ pub fn fhe_rot_word(word: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<BaseRadi
 // We apply the SBOX to each byte of the word
 pub fn fhe_sub_word(wopbs_key: &tfhe::integer::wopbs::WopbsKey, wopbs_key_short: &WopbsKey, word: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
     for i in 0..4 {
-        sbox(wopbs_key, wopbs_key_short, &mut word[i]);
+        sbox(wopbs_key, wopbs_key_short, &mut word[i], false);
     }
 }

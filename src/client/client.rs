@@ -200,4 +200,47 @@ impl Client {
         
     }
 
+    pub fn test_verify(&self, state_enc: &Vec<BaseRadixCiphertext<Ciphertext>>, state_dec: &Vec<BaseRadixCiphertext<Ciphertext>>) {
+        // Test FHE AES encryption
+        let message = self.iv;
+        let mut encrypted_message_bytes: Vec<u8> = Vec::new();
+        for fhe_encrypted_byte in state_enc.iter() {
+            let encrypted_byte: u128 = self.cks.decrypt_without_padding(fhe_encrypted_byte);
+            encrypted_message_bytes.push(encrypted_byte as u8);
+        }
+        // Convert decrypted bytes to u128
+        let mut encrypted_message: u128 = 0;
+        for (i, &byte) in encrypted_message_bytes.iter().enumerate() {
+            encrypted_message |= (byte as u128) << ((15 - i) * 8);
+        }
+        // Encrypt the message using AES for verification
+        let encrypted_key = self.key.to_be_bytes();
+        let mut message_bytes = message.to_be_bytes();
+
+        let cipher = Aes128::new(GenericArray::from_slice(&encrypted_key));
+        cipher.encrypt_block(GenericArray::from_mut_slice(&mut message_bytes));
+
+        let clear_encrypted_message = u128::from_be_bytes(message_bytes);
+
+        assert_eq!(encrypted_message, clear_encrypted_message);
+
+        // Test FHE AES decryption
+        let mut decrypted_message_bytes: Vec<u8> = Vec::new();
+        for fhe_decrypted_byte in state_dec.iter() {
+            let byte: u128 = self.cks.decrypt_without_padding(fhe_decrypted_byte);
+            decrypted_message_bytes.push(byte as u8);
+        }
+
+        let mut decrypted_message: u128 = 0;
+        for (i, &byte) in decrypted_message_bytes.iter().enumerate() {
+            decrypted_message |= (byte as u128) << ((15 - i) * 8);
+        }
+        println!("message: {:032x}", message);
+
+        assert_eq!(decrypted_message, message);
+        
+
+
+    }
+
 }
