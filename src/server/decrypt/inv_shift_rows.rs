@@ -1,8 +1,9 @@
 use tfhe::shortint::Ciphertext;
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
 
+// Apply inverse shift rows operation.
 pub fn inv_shift_rows(state: &mut Vec<BaseRadixCiphertext<Ciphertext>>) {
-    assert!(state.len() == 16, "State must have exactly 16 ciphertexts (16 bytes).");
+    // Row 1: No shift
 
     // Row 2: Shift right by 1
     state.swap(13, 9);

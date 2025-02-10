@@ -14,6 +14,7 @@ use super::many_wopbs::many_wopbs_without_padding;
 
 
 
+// multiplication function to embed in the many_sbox function to use for the mix columns operation in AES encryption and decryption.
 
 // formula for multiplication by 2 in GF(2^8)
 pub fn mul2(x: u8) -> u8 {

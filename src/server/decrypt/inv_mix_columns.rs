@@ -1,11 +1,11 @@
-use tfhe::integer::IntegerCiphertext;
 use tfhe::shortint::Ciphertext;
 use tfhe::integer::{ServerKey, ciphertext::BaseRadixCiphertext};
 
 pub fn inv_mix_columns(sks: &ServerKey, mul_sbox_state: &mut Vec<Vec<BaseRadixCiphertext<Ciphertext>>>) -> Vec<BaseRadixCiphertext<Ciphertext>> {
     let mut state: Vec<BaseRadixCiphertext<Ciphertext>> = vec![];
 
-    // Perform InvMixColumns transformation on this column, and create a new state and return it.
+    // mul9, mul11, mul13 and mul14 of each byte of state is stored in vector respectively.
+    // We use them to do inverse mix columns operation, with max noise level of 4.
     for col in 0..4 {
         let base = col * 4;
 

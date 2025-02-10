@@ -1,10 +1,11 @@
-
 use tfhe::integer::wopbs::{
     IntegerWopbsLUT,
     PlaintextCount, 
     CiphertextCount
 };
 
+// This is the function wopbs_key.generate_radix_lut_without_padding(...), except the last part of the function had
+// a bug that assumed there is carry, and I fixed it for my use case and use this function instead.
 pub fn gen_lut<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_block: usize, f: F) -> IntegerWopbsLUT 
     where
         F: Fn(u64) -> u64

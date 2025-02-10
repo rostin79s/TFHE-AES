@@ -29,6 +29,7 @@ struct Args {
     key: u128,
 }
 
+// Main function to run the FHE AES CTR encryption. All functions, AES key expansion, encryption and decryption are run single threaded. Only CTR is parallelized.
 fn main() {
     test();
 
@@ -37,9 +38,9 @@ fn main() {
 
     let client_obj = Client::new(args.number_of_outputs, args.iv, args.key);
 
-    let (client_key, public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
+    let (public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
 
-    let server_obj = Server::new(client_key, public_key, server_key, wopbs_key);
+    let server_obj = Server::new(public_key, server_key, wopbs_key);
 
     // AES key expansion
     let start = std::time::Instant::now();
@@ -69,6 +70,7 @@ fn main() {
 }
 
 // function to test the correctness of the AES key expansion, encryption and decryption in FHE with test vectors and random test cases.
+// Takes a long time since all functions are single threaded, lower security paramters to see correctness faster.
 fn test() {
     // Define the test vectors
     let test_vectors = vec![
@@ -94,9 +96,9 @@ fn test() {
         
         let client_obj = Client::new(1, u128::from_str_radix(&plain_hex, 16).unwrap(), u128::from_str_radix(key_hex, 16).unwrap());
 
-        let (client_key, public_key, server_key, wopbs_key, mut state, encrypted_key) = client_obj.client_encrypt();
+        let (public_key, server_key, wopbs_key, mut state, encrypted_key) = client_obj.client_encrypt();
 
-        let server_obj = Server::new(client_key, public_key, server_key, wopbs_key);
+        let server_obj = Server::new(public_key, server_key, wopbs_key);
 
         
 
@@ -120,9 +122,9 @@ fn test() {
 
         let client_obj = Client::new(1, plain, key);
 
-        let (client_key, public_key, server_key, wopbs_key, mut state, encrypted_key) = client_obj.client_encrypt();
+        let (public_key, server_key, wopbs_key, mut state, encrypted_key) = client_obj.client_encrypt();
 
-        let server_obj = Server::new(client_key, public_key, server_key, wopbs_key);
+        let server_obj = Server::new(public_key, server_key, wopbs_key);
 
         // Perform AES key expansion
         let encrypted_round_keys = server_obj.aes_key_expansion(&encrypted_key);

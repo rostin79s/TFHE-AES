@@ -2,7 +2,7 @@ use tfhe::shortint::Ciphertext;
 use tfhe::integer::{ServerKey, ciphertext::BaseRadixCiphertext};
 
 pub fn mix_columns(sks: &ServerKey, mul_sbox_state: &mut Vec<Vec<BaseRadixCiphertext<Ciphertext>>>) -> Vec<BaseRadixCiphertext<Ciphertext>> {
-    // we apply shifting to the state matrix
+    // we apply shifting rows first
 
     // Row 1: No shift
 
@@ -22,6 +22,8 @@ pub fn mix_columns(sks: &ServerKey, mul_sbox_state: &mut Vec<Vec<BaseRadixCipher
 
     let mut state: Vec<BaseRadixCiphertext<Ciphertext>> = vec![];
     // Perform MixColumns transformation on this column, and create a new state and return it.
+    // byte, mul2(byte), mul3(byte) are stored in a vector in that order. Max noise level 
+    // is 4. 1 additional noise level due to the add round key before makes it 5 in total.
     for col in 0..4 {
         let base = col * 4;
 

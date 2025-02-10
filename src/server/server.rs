@@ -4,7 +4,6 @@ use tfhe::{
         wopbs::WopbsKey,
         IntegerCiphertext,
         PublicKey,
-        RadixClientKey,
         ServerKey
     },
     shortint::Ciphertext,
@@ -22,10 +21,7 @@ use super::decrypt::inv_mix_columns;
 use super::decrypt::inv_shift_rows;
 use super::key_expansion::key_expansion_utils::{RCON, fhe_rot_word, fhe_sub_word};
 
-use rayon::prelude::*;
-
 pub struct Server {
-    cks: RadixClientKey,
     public_key: PublicKey,
     sks: ServerKey,
     wopbs_key: WopbsKey,
@@ -33,9 +29,9 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(cks: RadixClientKey, public_key: PublicKey, sks: ServerKey, wopbs_key: WopbsKey) -> Self {
+    pub fn new(public_key: PublicKey, sks: ServerKey, wopbs_key: WopbsKey) -> Self {
         let wopbs_key_short = wopbs_key.clone().into_raw_parts();
-        Server { cks, public_key, sks, wopbs_key, wopbs_key_short }
+        Server {public_key, sks, wopbs_key, wopbs_key_short }
     }
 
     // AES encryption. We use wopbs_without_padding to compute SBOX, and use many_wopbs_without_padding to compute many 
@@ -72,21 +68,17 @@ impl Server {
         let rounds = 10;
 
         add_round_key(&self.sks, state, &encrypted_round_keys[rounds]);
-        debug_state(&self.cks, state, rounds, &self.public_key, "add round key");
 
         for round in (2..=rounds).rev() {
             inv_shift_rows(state);
-            debug_state(&self.cks, state, round, &self.public_key, "inv shift rows");
 
             // We do normal sbox
             for byte_ct in state.iter_mut() {
                 sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct, true);
             }
-            debug_state(&self.cks, state, round, &self.public_key, "sbox");
             
 
             add_round_key(&self.sks, state, &encrypted_round_keys[round - 1]);
-            debug_state(&self.cks, state, round, &self.public_key, "add round key");
 
             // we apply many_sbox function, but without the sbox part, to compute mul9, mul11, mul13 and 
             // mul14 (stored in order) to reduce the additions, which reduces the max noise level required.
@@ -98,22 +90,18 @@ impl Server {
                 mul_sbox_state.push(mul_sbox_byte);
             }
 
-            // now we apply inv mix columns using the mul resuts stored in mul_sbox_state.
+            // now we apply inv mix columns using the mul results stored in mul_sbox_state.
             let new_state = inv_mix_columns(&self.sks, &mut mul_sbox_state);
             *state = new_state;
-            debug_state(&self.cks, state, round, &self.public_key, "inv mix columns");
         }
 
         inv_shift_rows(state);
-        // debug_state(state, 1, &self.public_key, "inv shift rows");
 
         for byte_ct in state.iter_mut() {
             sbox(&self.wopbs_key, &self.wopbs_key_short, byte_ct, true);
         }
-        // debug_state(state, 1, &self.public_key, "sbox");
 
         add_round_key(&self.sks, state, &encrypted_round_keys[0]);
-        // debug_state(state, 1, &self.public_key, "add round key");
     }
 
     pub fn aes_key_expansion(&self, key: &Vec<BaseRadixCiphertext<Ciphertext>>) -> Vec<Vec<BaseRadixCiphertext<Ciphertext>>> {
@@ -291,17 +279,4 @@ fn add_round_key(sks: &ServerKey, state: &mut Vec<BaseRadixCiphertext<Ciphertext
     for (state_byte, round_key_byte) in state.iter_mut().zip(round_key.iter()) {
         sks.unchecked_add_assign(state_byte, round_key_byte);
     }
-}
-
-fn debug_state(cks: &RadixClientKey, state: &Vec<BaseRadixCiphertext<Ciphertext>>, round: usize, public_key: &PublicKey, message: &str) {
-    println!("Round {}: {}", round, message);
-    // decrypt each byte and generate hex of the entire state
-    let mut hex_state = String::new();
-    for byte in state.iter() {
-        let decrypted_byte: u64 = cks.decrypt_without_padding(byte);
-        hex_state.push_str(&format!("{:02x}", decrypted_byte));
-    }
-    println!("State: {}", hex_state);
-
-    
 }

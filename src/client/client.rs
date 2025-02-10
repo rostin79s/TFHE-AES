@@ -21,9 +21,6 @@ use aes::cipher::{
     generic_array::GenericArray,
 };
 
-// to generate random test cases
-// use rand::Rng;
-
 
 
 // Used concrete-optimizer to find paramter-set that gives 128 bit security and 
@@ -34,8 +31,8 @@ use aes::cipher::{
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
     lwe_dimension: LweDimension(669),
-    glwe_dimension: GlweDimension(1),
-    polynomial_size: PolynomialSize(256),
+    glwe_dimension: GlweDimension(4),
+    polynomial_size: PolynomialSize(512),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
     )),
@@ -69,7 +66,7 @@ pub struct Client {
 }
 
 impl Client {
-
+    // Initialize client with number of outputs, iv and key, and generate wopbs paramters and keys.
     pub fn new(_number_of_outputs: usize, _iv: u128, _key: u128) -> Self {
         let nb_block = 8;
 
@@ -122,7 +119,8 @@ impl Client {
         }
     }
 
-    pub fn client_encrypt(&self) -> (RadixClientKey, PublicKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
+    // Encrypt key and iv using FHE and return the encrypted key and iv.
+    pub fn client_encrypt(&self) -> (PublicKey, ServerKey, WopbsKey, Vec<BaseRadixCiphertext<Ciphertext>>, Vec<BaseRadixCiphertext<Ciphertext>>) {
         // Client encrypts key and sends to server.
         let mut encrypted_key: Vec<BaseRadixCiphertext<Ciphertext>> = Vec::new();
         for byte_idx in (0..16).rev() { 
@@ -142,9 +140,10 @@ impl Client {
         // for encrypting constants server side
         let public_key = PublicKey::new(&self.cks);
     
-        (self.cks.clone(), public_key, self.sks.clone(), self.wopbs_key.clone(), encrypted_iv, encrypted_key)
+        (public_key, self.sks.clone(), self.wopbs_key.clone(), encrypted_iv, encrypted_key)
     }
 
+    // Decrypt FHE AES CTR encryption and verify correctness using aes crate.
     pub fn client_decrypt_and_verify(&self, vec_fhe_encrypted_state: &mut Vec<Vec<BaseRadixCiphertext<Ciphertext>>>
     ){
         assert!(vec_fhe_encrypted_state.len() == self.number_of_outputs);
@@ -173,33 +172,9 @@ impl Client {
             
         }
         
-    
-        
-
-        
-        
-
-        // let mut decrypted_message_bytes: Vec<u8> = Vec::new();
-        // for fhe_decrypted_byte in fhe_decrypted_state.iter() {
-        //     let byte: u128 = self.cks.decrypt_without_padding(fhe_decrypted_byte);
-        //     decrypted_message_bytes.push(byte as u8);
-        // }
-
-        // let mut decrypted_message: u128 = 0;
-        // for (i, &byte) in decrypted_message_bytes.iter().enumerate() {
-        //     decrypted_message |= (byte as u128) << ((15 - i) * 8);
-        // }
-
-        // if decrypted_message == message {
-        //     // println!("FHE decryption successful. Decrypted message: {:032x}", decrypted_message);
-        // } else {
-        //     println!("Fhe decryption failed ***************************************");
-        // }
-
-
-        
     }
 
+    // Verify correctness of all FHE computations in test function in main.rs
     pub fn test_verify(&self, state_enc: &Vec<BaseRadixCiphertext<Ciphertext>>, state_dec: &Vec<BaseRadixCiphertext<Ciphertext>>) {
         // Test FHE AES encryption
         let message = self.iv;
@@ -235,12 +210,9 @@ impl Client {
         for (i, &byte) in decrypted_message_bytes.iter().enumerate() {
             decrypted_message |= (byte as u128) << ((15 - i) * 8);
         }
-        println!("message: {:032x}", message);
 
         assert_eq!(decrypted_message, message);
-        
-
-
+        println!("Passed test case.");
     }
 
 }
