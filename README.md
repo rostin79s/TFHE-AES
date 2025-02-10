@@ -183,4 +183,4 @@ The custom parameter set for WoPBS evaluation is chosen to guarantee **128 bits 
 
 ## Performance
 
-The AES encryption time achieved using this approach is **84 seconds**, which is comparable to the **Fregata implementation** (86 seconds).
+The AES encryption time achieved using this approach is **84 seconds**, which is comparable to the **Fregata implementation** (86 seconds) single core excution.
