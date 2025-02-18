@@ -6,6 +6,8 @@ use client::client::Client;
 use server::server::Server;
 
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
+use tfhe::integer::{IntegerCiphertext, IntegerRadixCiphertext};
+use tfhe::shortint::parameters::{LEGACY_WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, V0_11_PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_2_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_3_KS_PBS_GAUSSIAN_2M64};
 use tfhe::shortint::Ciphertext;
 
 // To parse command-line arguments
@@ -29,8 +31,68 @@ struct Args {
     key: u128,
 }
 
+
+fn example(){
+    use tfhe::integer::gen_keys_radix;
+    use tfhe::integer::wopbs::*;
+    use tfhe::shortint::parameters::parameters_wopbs_message_carry::LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
+    use tfhe::shortint::parameters::V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
+
+    let nb_block = 4;
+    //Generate the client key and the server key:
+    let (cks, sks) = gen_keys_radix(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, nb_block);
+    let wopbs_key = WopbsKey::new_wopbs_key(&cks, &sks, &LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS);
+    // let wopbs_key = WopbsKey::new_wopbs_key(&cks, &sks, &LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS);
+    let mut moduli = 1_u64;
+    for _ in 0..nb_block {
+        moduli *= cks.parameters().message_modulus().0;
+    }
+    println!("moduli: {}", moduli);
+
+    let wopbs_key_short = wopbs_key.clone().into_raw_parts();
+    let n2 = wopbs_key_short.ksk_pbs_to_wopbs
+                    .output_key_lwe_dimension()
+                    .to_lwe_size();
+    let q = wopbs_key_short.param.ciphertext_modulus;
+    println!("q: {}", q);
+    println!("n2: {}", n2.0);
+
+
+    let clear1 = 14 % moduli;
+    let clear2 = 9 % moduli;
+    let mut ct1 = cks.encrypt(clear1);
+    let ct2 = cks.encrypt(clear2);
+    sks.mul_assign_parallelized(&mut ct1, &ct2);
+
+    // let mut ct1 = wopbs_key.keyswitch_to_wopbs_params(&sks, &ct1);
+
+    // sks.unchecked_scalar_add_assign(&mut ct1, 2);
+    // let mut blocks = ct1.clone().into_blocks();
+    // let sks_s = sks.into_raw_parts();
+    // wopbs_key_short.wopbs_server_key.unchecked_scalar_add_assign(&mut blocks[0], 1);
+    // let ct1 = BaseRadixCiphertext::from_blocks(blocks);
+
+
+    // let lut = wopbs_key.generate_lut_radix(&ct1, |x| x+1);
+    // let ct_res = wopbs_key.wopbs(&ct1, &lut);
+    // let ct_res = wopbs_key.keyswitch_to_pbs_params(&ct_res);
+    let res: u64 = cks.decrypt(&ct1);
+
+    println!("res: {}", res);
+    assert_eq!(res, clear1 + clear2);
+
+    // assert_eq!(res, clear1);
+}
+
 // Main function to run the FHE AES CTR encryption. All functions, AES key expansion, encryption and decryption are run single threaded. Only CTR is parallelized.
 fn main() {
+    loop {
+        // example();
+        break;
+    }
+
+
+
     // Uncomment to run correctness tests
     
     // test();

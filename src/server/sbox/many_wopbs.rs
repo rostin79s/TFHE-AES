@@ -249,8 +249,10 @@ pub fn many_circuit_bootstrap_boolean_vertical_packing<Scalar: UnsignedTorus + C
         pfpksk_list.ciphertext_modulus(),
     );
 
+    let start = std::time::Instant::now();
+
     for (lwe_in, ggsw) in izip!(lwe_list_in.iter(), ggsw_list.as_mut_view().into_ggsw_iter()) {
-        circuit_bootstrap_boolean(
+        custom_circuit_bootstrap_boolean(
             fourier_bsk,
             lwe_in,
             ggsw_res.as_mut_view(),
@@ -262,6 +264,8 @@ pub fn many_circuit_bootstrap_boolean_vertical_packing<Scalar: UnsignedTorus + C
 
         ggsw.fill_with_forward_fourier(ggsw_res.as_view(), fft, stack);
     }
+
+    println!("custom_circuit_bootstrap_boolean: {:?}", start.elapsed());
 
     // We do vertical packing for each LUT and store the result in lwe_list_out.
     for i in 0..lwe_list_out.len() {
@@ -280,6 +284,131 @@ pub fn many_circuit_bootstrap_boolean_vertical_packing<Scalar: UnsignedTorus + C
 
 
 
+}
+
+use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::homomorphic_shift_boolean;
+use tfhe::core_crypto::commons::math::decomposition::DecompositionLevel;
+
+pub fn custom_circuit_bootstrap_boolean<Scalar: UnsignedTorus + CastInto<usize>>(
+    fourier_bsk: FourierLweBootstrapKeyView<'_>,
+    lwe_in: LweCiphertext<&[Scalar]>,
+    mut ggsw_out: GgswCiphertext<&mut [Scalar]>,
+    delta_log: DeltaLog,
+    pfpksk_list: LwePrivateFunctionalPackingKeyswitchKeyList<&[Scalar]>,
+    fft: FftView<'_>,
+    stack: &mut PodStack,
+) {
+    debug_assert!(lwe_in.ciphertext_modulus() == ggsw_out.ciphertext_modulus());
+    debug_assert!(ggsw_out.ciphertext_modulus() == pfpksk_list.ciphertext_modulus());
+
+    debug_assert!(
+        pfpksk_list.ciphertext_modulus().is_native_modulus(),
+        "This operation currently only supports native moduli"
+    );
+
+    let level_cbs = ggsw_out.decomposition_level_count();
+    let base_log_cbs = ggsw_out.decomposition_base_log();
+
+    debug_assert!(
+        level_cbs.0 >= 1,
+        "level_cbs needs to be >= 1, got {}",
+        level_cbs.0
+    );
+    debug_assert!(
+        base_log_cbs.0 >= 1,
+        "base_log_cbs needs to be >= 1, got {}",
+        base_log_cbs.0
+    );
+
+    let fpksk_input_lwe_key_dimension = pfpksk_list.input_key_lwe_dimension();
+    let fourier_bsk_output_lwe_dimension = fourier_bsk.output_lwe_dimension();
+
+    debug_assert!(
+        fpksk_input_lwe_key_dimension == fourier_bsk_output_lwe_dimension,
+        "The fourier_bsk output_lwe_dimension, got {}, must be equal to the fpksk \
+        input_lwe_key_dimension, got {}",
+        fourier_bsk_output_lwe_dimension.0,
+        fpksk_input_lwe_key_dimension.0
+    );
+
+    let fpksk_output_polynomial_size = pfpksk_list.output_polynomial_size();
+    let fpksk_output_glwe_key_dimension = pfpksk_list.output_key_glwe_dimension();
+
+    debug_assert!(
+        ggsw_out.polynomial_size() == fpksk_output_polynomial_size,
+        "The output GGSW ciphertext needs to have the same polynomial size as the fpksks, \
+        got {}, expected {}",
+        ggsw_out.polynomial_size().0,
+        fpksk_output_polynomial_size.0
+    );
+
+    debug_assert!(
+        ggsw_out.glwe_size().to_glwe_dimension() == fpksk_output_glwe_key_dimension,
+        "The output GGSW ciphertext needs to have the same GLWE dimension as the fpksks, \
+        got {}, expected {}",
+        ggsw_out.glwe_size().to_glwe_dimension().0,
+        fpksk_output_glwe_key_dimension.0
+    );
+
+    debug_assert!(
+        ggsw_out.glwe_size().0 == pfpksk_list.lwe_pfpksk_count().0,
+        "The input vector of pfpksk_list needs to have {} ggsw.glwe_size elements got {}",
+        ggsw_out.glwe_size().0,
+        pfpksk_list.lwe_pfpksk_count().0,
+    );
+
+    // Output for every bootstrapping
+    let (lwe_out_bs_buffer_data, stack) = stack.make_aligned_with(
+        fourier_bsk_output_lwe_dimension.to_lwe_size().0,
+        CACHELINE_ALIGN,
+        |_| Scalar::ZERO,
+    );
+    let mut lwe_out_bs_buffer =
+        LweCiphertext::from_container(&mut *lwe_out_bs_buffer_data, lwe_in.ciphertext_modulus());
+
+    for (output_index, mut ggsw_level_matrix) in ggsw_out.iter_mut().enumerate() {
+        let decomposition_level = DecompositionLevel(level_cbs.0 - output_index);
+        let start1 = std::time::Instant::now();
+        homomorphic_shift_boolean(
+            fourier_bsk,
+            lwe_out_bs_buffer.as_mut_view(),
+            lwe_in.as_view(),
+            decomposition_level,
+            base_log_cbs,
+            delta_log,
+            fft,
+            stack,
+        );
+
+        let elapsed1 = start1.elapsed();
+        println!("homomorphic_shift_boolean: {:?}", elapsed1);
+        
+
+        let start2 = std::time::Instant::now();
+
+        let mut i = 0;
+
+        for (pfpksk, mut glwe_out) in pfpksk_list
+            .iter()
+            .zip(ggsw_level_matrix.as_mut_glwe_list().iter_mut())
+        {
+            let start3 = std::time::Instant::now();
+            private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext(
+                &pfpksk,
+                &mut glwe_out,
+                &lwe_out_bs_buffer,
+            );
+            println!("single private {:?}, {:?}",i, start3.elapsed());
+            i = i + 1;
+        }
+        
+
+        let elapsed2 = start2.elapsed();
+        println!("private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext: {:?}", elapsed2);
+    }
+    // print new lines
+    println!();
+    println!();
 }
 
 

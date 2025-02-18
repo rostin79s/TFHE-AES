@@ -56,6 +56,64 @@ WopbsParameters {
     encryption_key_choice: EncryptionKeyChoice::Big,
 };
 
+pub const paper: WopbsParameters =
+WopbsParameters {
+    lwe_dimension: LweDimension(549),
+    glwe_dimension: GlweDimension(2),
+    polynomial_size: PolynomialSize(1024),
+    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        0.0003177104139262535,
+    )),
+    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    pbs_base_log: DecompositionBaseLog(12),
+    pbs_level: DecompositionLevelCount(3),
+    ks_level: DecompositionLevelCount(5),
+    ks_base_log: DecompositionBaseLog(2),
+    pfks_level: DecompositionLevelCount(2),
+    pfks_base_log: DecompositionBaseLog(17),
+    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    cbs_level: DecompositionLevelCount(1),
+    cbs_base_log: DecompositionBaseLog(13),
+    message_modulus: MessageModulus(2),
+    carry_modulus: CarryModulus(1),
+    ciphertext_modulus: CiphertextModulus::new_native(),
+    encryption_key_choice: EncryptionKeyChoice::Big,
+};
+
+pub const cheap: WopbsParameters =
+WopbsParameters {
+    lwe_dimension: LweDimension(588),
+    glwe_dimension: GlweDimension(1),
+    polynomial_size: PolynomialSize(256),
+    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        0.0003177104139262535,
+    )),
+    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    pbs_base_log: DecompositionBaseLog(15),
+    pbs_level: DecompositionLevelCount(2),
+    ks_level: DecompositionLevelCount(5),
+    ks_base_log: DecompositionBaseLog(2),
+    pfks_level: DecompositionLevelCount(1),
+    pfks_base_log: DecompositionBaseLog(24),
+    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    cbs_level: DecompositionLevelCount(1),
+    cbs_base_log: DecompositionBaseLog(10),
+    message_modulus: MessageModulus(2),
+    carry_modulus: CarryModulus(1),
+    ciphertext_modulus: CiphertextModulus::new_native(),
+    encryption_key_choice: EncryptionKeyChoice::Big,
+};
+
+
+
 pub struct Client {
     cks: RadixClientKey,
     sks: ServerKey,
