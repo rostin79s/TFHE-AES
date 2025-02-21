@@ -5,6 +5,8 @@ mod tables;
 use client::client::Client;
 use server::server::Server;
 
+use tfhe::core_crypto::gpu::cuda_keyswitch_lwe_ciphertext;
+use tfhe::core_crypto::prelude::{LweCiphertextCount, LweCiphertextList, LweSize};
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
 use tfhe::integer::{IntegerCiphertext, IntegerRadixCiphertext};
 use tfhe::shortint::parameters::{LEGACY_WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, V0_11_PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_2_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_3_KS_PBS_GAUSSIAN_2M64};
@@ -33,38 +35,81 @@ struct Args {
 
 
 fn example(){
+    use tfhe::core_crypto::gpu::entities::lwe_keyswitch_key::CudaLweKeyswitchKey;
+    use tfhe::core_crypto::gpu::{
+        convert_lwe_keyswitch_key_async,
+        vec::CudaVec,
+        vec::GpuIndex,
+        CudaStreams,
+    };
+    use tfhe::integer::gpu::CudaServerKey;
+    use tfhe::integer::ClientKey;
+
+    use tfhe::shortint::gen_keys;
     use tfhe::integer::gen_keys_radix;
     use tfhe::integer::wopbs::*;
     use tfhe::shortint::parameters::parameters_wopbs_message_carry::LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
     use tfhe::shortint::parameters::V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
-
-    let nb_block = 4;
-    //Generate the client key and the server key:
-    let (cks, sks) = gen_keys_radix(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, nb_block);
-    let wopbs_key = WopbsKey::new_wopbs_key(&cks, &sks, &LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS);
-    // let wopbs_key = WopbsKey::new_wopbs_key(&cks, &sks, &LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS);
-    let mut moduli = 1_u64;
-    for _ in 0..nb_block {
-        moduli *= cks.parameters().message_modulus().0;
-    }
-    println!("moduli: {}", moduli);
-
-    let wopbs_key_short = wopbs_key.clone().into_raw_parts();
-    let n2 = wopbs_key_short.ksk_pbs_to_wopbs
-                    .output_key_lwe_dimension()
-                    .to_lwe_size();
-    let q = wopbs_key_short.param.ciphertext_modulus;
-    println!("q: {}", q);
-    println!("n2: {}", n2.0);
+    use tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+    use tfhe::core_crypto::gpu::lwe_ciphertext_list::CudaLweCiphertextList;
 
 
-    let clear1 = 14 % moduli;
-    let clear2 = 9 % moduli;
-    let mut ct1 = cks.encrypt(clear1);
-    let ct2 = cks.encrypt(clear2);
-    sks.mul_assign_parallelized(&mut ct1, &ct2);
+
+    let (cks, sks) = gen_keys(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64);
+
+
+    let gpu_index = 0;
+    let streams = CudaStreams::new_single_gpu(GpuIndex(gpu_index));
+
+    // let cks = ClientKey::new(PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64);
+    // let sks = CudaServerKey::new(&cks, &streams);
+    let ksk = sks.key_switching_key;
+
+
+    let cuda_ksk = CudaLweKeyswitchKey::from_lwe_keyswitch_key(&ksk, &streams);
+
+    let ct1 = cks.encrypt(2).ct;
+    let ct2 = cks.encrypt(3).ct;
+
+    let lwe_size = ct1.lwe_size().0;
+    let ciphertext_modulus = ct1.ciphertext_modulus();
+
+
+    let ct1_container = ct1.into_container();
+    let ct2_container = ct2.into_container();
+    let mut cts_container = ct1_container.clone();
+    cts_container.extend(ct2_container);
+
+    let mut cts = LweCiphertextList::from_container(cts_container, LweSize(lwe_size), ciphertext_modulus);
+
+
+    
+    let cuda_cts = CudaLweCiphertextList::from_lwe_ciphertext_list(&cts, &streams);
+    // cuda_keyswitch_lwe_ciphertext(&cuda_ksk, cts, output_lwe_ciphertext, input_indexes, output_indexes, &streams);
+
+    // let clear1 = 2;
+    // let mut ct1 = cks.encrypt(clear1);
+
+    // let src = sks.key_switching_key;
+
+    // let dest = CudaVec::new(len, streams, stream_index)
+
+    // convert_lwe_keyswitch_key_async(streams, dest, src);
+    // let f = |x: u64| x+1;
+    // let lut = sks.generate_lookup_table(f);
+    // let ct1 = sks.apply_lookup_table(&ct1,&lut);
+
+    // let n = ct1.ct.lwe_size().0;
+    // println!("n: {}", n);
+
+    
+
+    // let ct2 = cks.encrypt(clear2);
 
     // let mut ct1 = wopbs_key.keyswitch_to_wopbs_params(&sks, &ct1);
+    // let n = ct1.blocks()[0].ct.lwe_size().0;
+    // println!("n: {}", n);
+
 
     // sks.unchecked_scalar_add_assign(&mut ct1, 2);
     // let mut blocks = ct1.clone().into_blocks();
@@ -76,10 +121,10 @@ fn example(){
     // let lut = wopbs_key.generate_lut_radix(&ct1, |x| x+1);
     // let ct_res = wopbs_key.wopbs(&ct1, &lut);
     // let ct_res = wopbs_key.keyswitch_to_pbs_params(&ct_res);
-    let res: u64 = cks.decrypt(&ct1);
+    // let res: u64 = cks.decrypt(&ct1);
 
-    println!("res: {}", res);
-    assert_eq!(res, clear1 + clear2);
+    // println!("res: {}", res);
+    // assert_eq!(res, clear1 + clear2);
 
     // assert_eq!(res, clear1);
 }
@@ -87,7 +132,7 @@ fn example(){
 // Main function to run the FHE AES CTR encryption. All functions, AES key expansion, encryption and decryption are run single threaded. Only CTR is parallelized.
 fn main() {
     loop {
-        // example();
+        example();
         break;
     }
 
@@ -97,39 +142,39 @@ fn main() {
     
     // test();
 
-    let args = Args::parse();
+    // let args = Args::parse();
 
 
-    let client_obj = Client::new(args.number_of_outputs, args.iv, args.key);
+    // let client_obj = Client::new(args.number_of_outputs, args.iv, args.key);
 
-    let (public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
+    // let (public_key, server_key, wopbs_key, encrypted_iv, encrypted_key) = client_obj.client_encrypt();
 
-    let server_obj = Server::new(public_key, server_key, wopbs_key);
+    // let server_obj = Server::new(public_key, server_key, wopbs_key);
 
-    // AES key expansion
-    let start = std::time::Instant::now();
-    let encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = server_obj.aes_key_expansion(&encrypted_key);
-    let key_expansion_elapsed = start.elapsed();
-    println!("AES key expansion took: {:?}", key_expansion_elapsed);
+    // // AES key expansion
+    // let start = std::time::Instant::now();
+    // let encrypted_round_keys: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = server_obj.aes_key_expansion(&encrypted_key);
+    // let key_expansion_elapsed = start.elapsed();
+    // println!("AES key expansion took: {:?}", key_expansion_elapsed);
 
-    // parallel AES CTR
-    let start_ctr = std::time::Instant::now();
-    let mut vec_fhe_encrypted_states: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = (0..args.number_of_outputs)
-    .into_par_iter()
-    .map(|i| {
+    // // parallel AES CTR
+    // let start_ctr = std::time::Instant::now();
+    // let mut vec_fhe_encrypted_states: Vec<Vec<BaseRadixCiphertext<Ciphertext>>> = (0..args.number_of_outputs)
+    // .into_par_iter()
+    // .map(|i| {
 
-        let mut state = encrypted_iv.clone();
-        server_obj.add_scalar(&mut state, i as u128);
-        server_obj.aes_encrypt(&encrypted_round_keys, &mut state);
-        state
-    })
-    .collect();
+    //     let mut state = encrypted_iv.clone();
+    //     server_obj.add_scalar(&mut state, i as u128);
+    //     server_obj.aes_encrypt(&encrypted_round_keys, &mut state);
+    //     state
+    // })
+    // .collect();
 
-    let ctr_elapsed = start_ctr.elapsed();
-    println!("AES of #{:?} outputs computed in: {ctr_elapsed:?}", args.number_of_outputs);
+    // let ctr_elapsed = start_ctr.elapsed();
+    // println!("AES of #{:?} outputs computed in: {ctr_elapsed:?}", args.number_of_outputs);
 
-    // Client decrypts FHE computations and verifies correctness using aes crate.
-    client_obj.client_decrypt_and_verify(&mut vec_fhe_encrypted_states);
+    // // Client decrypts FHE computations and verifies correctness using aes crate.
+    // client_obj.client_decrypt_and_verify(&mut vec_fhe_encrypted_states);
 
 }
 
