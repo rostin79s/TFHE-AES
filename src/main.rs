@@ -52,7 +52,9 @@ fn example(){
     use tfhe::shortint::parameters::V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
     use tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
     use tfhe::core_crypto::gpu::lwe_ciphertext_list::CudaLweCiphertextList;
-
+    use tfhe::shortint::prelude::LweDimension;
+    use tfhe::core_crypto::algorithms::lwe_keyswitch;
+    use tfhe::core_crypto::prelude::*;
 
 
     let (cks, sks) = gen_keys(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64);
@@ -74,18 +76,40 @@ fn example(){
     let lwe_size = ct1.lwe_size().0;
     let ciphertext_modulus = ct1.ciphertext_modulus();
 
+    let ciphertext_counts = 2;
 
-    let ct1_container = ct1.into_container();
+    let ct1_container = ct1.clone().into_container();
     let ct2_container = ct2.into_container();
     let mut cts_container = ct1_container.clone();
     cts_container.extend(ct2_container);
 
     let mut cts = LweCiphertextList::from_container(cts_container, LweSize(lwe_size), ciphertext_modulus);
 
-
+    let out_lwe_size = ksk.output_lwe_size().0;
     
     let cuda_cts = CudaLweCiphertextList::from_lwe_ciphertext_list(&cts, &streams);
-    // cuda_keyswitch_lwe_ciphertext(&cuda_ksk, cts, output_lwe_ciphertext, input_indexes, output_indexes, &streams);
+    let mut cuda_out_cts = CudaLweCiphertextList::new(LweDimension(out_lwe_size - 1), LweCiphertextCount(ciphertext_counts), ciphertext_modulus, &streams);
+
+    let input_indexes = CudaVec::new(ciphertext_counts, &streams, gpu_index);
+    let output_indexes: CudaVec<u64> = CudaVec::new(ciphertext_counts, &streams, gpu_index);
+
+
+    cuda_keyswitch_lwe_ciphertext(&cuda_ksk, &cuda_cts, &mut cuda_out_cts, &input_indexes, &output_indexes, &streams);
+
+
+    let mut out_ct1 = LweCiphertext::new(0, LweSize(out_lwe_size), ciphertext_modulus);
+
+    keyswitch_lwe_ciphertext(&ksk, &ct1, &mut out_ct1);
+
+    let data_out_ct1 = out_ct1.into_container();
+    let intermediate_ct = cuda_out_cts.to_lwe_ciphertext_list(&streams);
+    let date_cuda_out_cts = intermediate_ct.get(0).into_container();
+
+    // assert
+    assert_eq!(data_out_ct1, date_cuda_out_cts);
+
+    // println!("data_out_ct1: {:?}", data_out_ct1);
+    // println!("date_cuda_out_cts: {:?}", date_cuda_out_cts);
 
     // let clear1 = 2;
     // let mut ct1 = cks.encrypt(clear1);
