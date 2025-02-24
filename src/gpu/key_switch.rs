@@ -33,7 +33,6 @@ pub fn gpu_key_switch(streams: &CudaStreams, ksk: &LweKeyswitchKey<Vec<u64>>, ve
     let cuda_ksk = CudaLweKeyswitchKey::from_lwe_keyswitch_key(&ksk, &streams);
 
     let lwe_size = vec_lwe_in[0].lwe_size();
-    println!("lwe_size: {}", lwe_size.0);
     let ciphertext_modulus = vec_lwe_in[0].ciphertext_modulus();
 
     let mut cts_container = Vec::new();
@@ -44,7 +43,6 @@ pub fn gpu_key_switch(streams: &CudaStreams, ksk: &LweKeyswitchKey<Vec<u64>>, ve
     let cts = LweCiphertextList::from_container(cts_container, lwe_size, ciphertext_modulus);
 
     let out_lwe_size = ksk.output_key_lwe_dimension();
-    println!("out_lwe_size: {}", out_lwe_size.0);
     let ciphertext_counts = vec_lwe_in.len();
     
     let cuda_cts = CudaLweCiphertextList::from_lwe_ciphertext_list(&cts, &streams);
@@ -57,9 +55,8 @@ pub fn gpu_key_switch(streams: &CudaStreams, ksk: &LweKeyswitchKey<Vec<u64>>, ve
     let input_indexes = unsafe { CudaVec::from_cpu_async(&index_vec, &streams, gpu_index) };
     let output_indexes = unsafe { CudaVec::from_cpu_async(&index_vec, &streams, gpu_index) };
 
-    let start = std::time::Instant::now();
     cuda_keyswitch_lwe_ciphertext(&cuda_ksk, &cuda_cts, &mut cuda_out_cts, &input_indexes, &output_indexes, &streams);
-    println!("cuda_keyswitch_lwe_ciphertext took: {:?}", start.elapsed());
+
     return cuda_out_cts;
 }
 
