@@ -4,9 +4,11 @@ mod tables;
 mod gpu;
 
 use client::client::Client;
+use gpu::pbs::{gpu_multi_pbs, gpu_pbs};
 use server::server::Server;
 use gpu::key_switch::{gpu_key_switch, cpu_key_switch};
 
+use tfhe::core_crypto::commons::math::random::BoundedDistribution;
 use tfhe::core_crypto::gpu::cuda_keyswitch_lwe_ciphertext;
 use tfhe::core_crypto::gpu::glwe_ciphertext_list::CudaGlweCiphertextList;
 use tfhe::core_crypto::prelude::{LweCiphertextCount, LweCiphertextList, LweSize};
@@ -61,6 +63,7 @@ use tfhe::core_crypto::prelude::*;
 use tfhe::core_crypto::gpu::algorithms::cuda_programmable_bootstrap_lwe_ciphertext;
 use tfhe::core_crypto::gpu::lwe_bootstrap_key::CudaLweBootstrapKey;
 use tfhe::core_crypto::algorithms::lwe_bootstrap_key_generation::par_allocate_and_generate_new_lwe_bootstrap_key;
+use tfhe::core_crypto::gpu::cuda_multi_bit_programmable_bootstrap_lwe_ciphertext;
 
 fn example(){
 
@@ -69,20 +72,27 @@ fn example(){
     let gpu_index = 0;
     let streams = CudaStreams::new_single_gpu(GpuIndex(gpu_index));
 
-    let pbs_params = V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
+    // let pbs_params = V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
+
+    let pbs_params = PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
 
 
     let small_lwe_dimension = pbs_params.lwe_dimension;
     let glwe_dimension = pbs_params.glwe_dimension;
     let polynomial_size = pbs_params.polynomial_size;
 
-    let lwe_stddev = pbs_params.lwe_noise_distribution.gaussian_std_dev();
-    let glwe_stddev = pbs_params.glwe_noise_distribution.gaussian_std_dev();
+    // let lwe_stddev = pbs_params.lwe_noise_distribution.gaussian_std_dev();
+    // let glwe_stddev = pbs_params.glwe_noise_distribution.gaussian_std_dev();
+    // let lwe_noise_distribution =
+    //     Gaussian::from_dispersion_parameter(lwe_stddev, 0.0);
+    // let glwe_noise_distribution =
+    //     Gaussian::from_dispersion_parameter(glwe_stddev, 0.0);
 
     let lwe_noise_distribution =
-        Gaussian::from_dispersion_parameter(lwe_stddev, 0.0);
+    DynamicDistribution::new_t_uniform(46);
     let glwe_noise_distribution =
-        Gaussian::from_dispersion_parameter(glwe_stddev, 0.0);
+    DynamicDistribution::new_t_uniform(17);
+
     let pbs_base_log = pbs_params.pbs_base_log;
     let pbs_level = pbs_params.pbs_level;
     let ciphertext_modulus = pbs_params.ciphertext_modulus;
@@ -104,31 +114,67 @@ fn example(){
 
     let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
 
-    let std_bootstrapping_key = par_allocate_and_generate_new_seeded_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+
+
+    // let bsk = par_allocate_and_generate_new_seeded_lwe_bootstrap_key(
+    //     &small_lwe_sk,
+    //     &glwe_sk,
+    //     pbs_base_log,
+    //     pbs_level,
+    //     glwe_noise_distribution,
+    //     ciphertext_modulus,
+    //     seeder,
+    // );
+
+    // let bsk: LweBootstrapKeyOwned<u64> = bsk.decompress_into_lwe_bootstrap_key();
+    // let mut fourier_bsk = FourierLweBootstrapKey::new(
+    //     bsk.input_lwe_dimension(),
+    //     bsk.glwe_size(),
+    //     bsk.polynomial_size(),
+    //     bsk.decomposition_base_log(),
+    //     bsk.decomposition_level_count(),
+    // );
+    // convert_standard_lwe_bootstrap_key_to_fourier(&bsk, &mut fourier_bsk);
+
+
+
+    let grouping_factor = pbs_params.grouping_factor;
+    let mut bsk = LweMultiBitBootstrapKey::new(
+        0u64,
+        glwe_dimension.to_glwe_size(),
+        polynomial_size,
         pbs_base_log,
         pbs_level,
-        glwe_noise_distribution,
+        small_lwe_dimension,
+        grouping_factor,
         ciphertext_modulus,
-        seeder,
     );
 
-    let std_bootstrapping_key: LweBootstrapKeyOwned<u64> = std_bootstrapping_key.decompress_into_lwe_bootstrap_key();
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrapping_key.input_lwe_dimension(),
-        std_bootstrapping_key.glwe_size(),
-        std_bootstrapping_key.polynomial_size(),
-        std_bootstrapping_key.decomposition_base_log(),
-        std_bootstrapping_key.decomposition_level_count(),
+    par_generate_lwe_multi_bit_bootstrap_key(
+        &small_lwe_sk,
+        &glwe_sk,
+        &mut bsk,
+        glwe_noise_distribution,
+        &mut encryption_generator,
     );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrapping_key, &mut fourier_bsk);
+
+    let mut multi_bit_bsk = FourierLweMultiBitBootstrapKey::new(
+        bsk.input_lwe_dimension(),
+        bsk.glwe_size(),
+        bsk.polynomial_size(),
+        bsk.decomposition_base_log(),
+        bsk.decomposition_level_count(),
+        bsk.grouping_factor(),
+    );
+
+    par_convert_standard_lwe_multi_bit_bootstrap_key_to_fourier(&bsk, &mut multi_bit_bsk);
 
 
     let message_modulus = pbs_params.message_modulus.0 * pbs_params.message_modulus.0;
     let delta = (1_u64 << 63) / message_modulus;
 
-    let clear1 = 3u64;
+
+    let clear1 = 6u64;
     let plaintext1 = Plaintext(clear1 * delta);
     let ct1: LweCiphertextOwned<u64> = allocate_and_encrypt_new_lwe_ciphertext(
         &small_lwe_sk,
@@ -179,15 +225,28 @@ fn example(){
         big_lwe_sk.lwe_dimension().to_lwe_size(),
         ciphertext_modulus,
     );
-    println!("Computing PBS...");
+
+    // println!("Computing PBS...");
+    // let start = std::time::Instant::now();
+    // programmable_bootstrap_lwe_ciphertext(
+    //     &ct1,
+    //     &mut ct1_out,
+    //     &lut1,
+    //     &fourier_bsk,
+    // );
+    // println!("PBS took: {:?}", start.elapsed());
+
+    println!("Computing multi bit PBS...");
     let start = std::time::Instant::now();
-    programmable_bootstrap_lwe_ciphertext(
+    multi_bit_programmable_bootstrap_lwe_ciphertext(
         &ct1,
         &mut ct1_out,
         &lut1,
-        &fourier_bsk,
+        &multi_bit_bsk,
+        ThreadCount(4),
+        true
     );
-    println!("PBS took: {:?}", start.elapsed());
+    println!("multi bit PBS took: {:?}", start.elapsed());
 
 
     let dec1: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, &ct1_out);
@@ -200,55 +259,24 @@ fn example(){
     assert_eq!(f(clear1), dec1);
 
     // GPU --------------------------------
-
-    let cuda_bsk = CudaLweBootstrapKey::from_lwe_bootstrap_key(&std_bootstrapping_key, &streams);
-    drop(std_bootstrapping_key);
-
-
     let mut vec_cts = vec![ct1.clone()];
     let size = 0;
     for _ in 0..size{
         vec_cts.push(ct1.clone());
     }
 
-    let ciphertext_counts = vec_cts.len();
-    let lwe_size = vec_cts[0].lwe_size();
-    let mut cts_container = Vec::new();
-    for lwe_in in vec_cts.iter(){
-        cts_container.extend(lwe_in.clone().into_container());
-    }
-
-    let cts = LweCiphertextList::from_container(cts_container, lwe_size, ciphertext_modulus);
-
-    let cuda_cts = CudaLweCiphertextList::from_lwe_ciphertext_list(&cts, &streams);
-    let mut cuda_out_cts = CudaLweCiphertextList::new(big_lwe_sk.lwe_dimension(), LweCiphertextCount(ciphertext_counts), ciphertext_modulus, &streams);
-
-    let mut vec_lut = vec![lut1.clone()];
+    let mut vec_luts = vec![lut1.clone()];
     for _ in 0..size{
-        vec_lut.push(lut1.clone());
+        vec_luts.push(lut1.clone());
     }
 
-    let mut luts_container = Vec::new();
-    for lut in vec_lut.iter(){
-        luts_container.extend(lut.clone().into_container());
-    }
+    // let cuda_out_cts = gpu_pbs(&streams, &bsk, &vec_cts, &vec_luts);
+    let cuda_out_cts = gpu_multi_pbs(&streams, &bsk, &vec_cts, &vec_luts);
 
-    
-    let luts = GlweCiphertextList::from_container(luts_container, vec_lut[0].glwe_size(), polynomial_size, ciphertext_modulus);
-    let cuda_luts = CudaGlweCiphertextList::from_glwe_ciphertext_list(&luts, &streams);
-
-    let index_vec: Vec<u64> = (0..vec_cts.len()).map(|x| x as u64).collect::<Vec<_>>();
-
-    let input_indexes = unsafe { CudaVec::from_cpu_async(&index_vec, &streams, gpu_index) };
-    let output_indexes = unsafe { CudaVec::from_cpu_async(&index_vec, &streams, gpu_index) };
-    let lut_indexes = unsafe { CudaVec::from_cpu_async(&index_vec, &streams, gpu_index) };
-
-    let start = std::time::Instant::now();
-    cuda_programmable_bootstrap_lwe_ciphertext(&cuda_cts, &mut cuda_out_cts, &cuda_luts, &lut_indexes, &output_indexes, &input_indexes, LweCiphertextCount(ciphertext_counts), &cuda_bsk, &streams);
-    println!("GPU PBS took: {:?}", start.elapsed());
+    // drop(bsk);
 
     let gpu_vec_lwe_out = cuda_out_cts.to_lwe_ciphertext_list(&streams);
-    let gpu_vec_out = gpu_vec_lwe_out.chunks(lwe_size.0).map(|lwe_out| {
+    let gpu_vec_out = gpu_vec_lwe_out.chunks(vec_cts[0].lwe_size().0).map(|lwe_out| {
         let temp = lwe_out.into_container().to_vec();
         LweCiphertextOwned::from_container(temp, ciphertext_modulus)
     }).collect::<Vec<_>>();
