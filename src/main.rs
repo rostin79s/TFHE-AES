@@ -15,7 +15,7 @@ use tfhe::core_crypto::prelude::{LweCiphertextCount, LweCiphertextList, LweSize}
 use tfhe::integer::backward_compatibility::ciphertext;
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
 use tfhe::integer::{IntegerCiphertext, IntegerRadixCiphertext};
-use tfhe::shortint::parameters::{LEGACY_WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, V0_11_PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_2_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_3_KS_PBS_GAUSSIAN_2M64};
+use tfhe::shortint::parameters::{LEGACY_WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_2_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_2_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_3_KS_PBS_GAUSSIAN_2M64};
 use tfhe::shortint::Ciphertext;
 
 // To parse command-line arguments
@@ -74,24 +74,24 @@ fn example(){
 
     // let pbs_params = V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
 
-    let pbs_params = PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+    let pbs_params = PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
 
 
     let small_lwe_dimension = pbs_params.lwe_dimension;
     let glwe_dimension = pbs_params.glwe_dimension;
     let polynomial_size = pbs_params.polynomial_size;
 
-    // let lwe_stddev = pbs_params.lwe_noise_distribution.gaussian_std_dev();
-    // let glwe_stddev = pbs_params.glwe_noise_distribution.gaussian_std_dev();
-    // let lwe_noise_distribution =
-    //     Gaussian::from_dispersion_parameter(lwe_stddev, 0.0);
-    // let glwe_noise_distribution =
-    //     Gaussian::from_dispersion_parameter(glwe_stddev, 0.0);
-
+    let lwe_stddev = pbs_params.lwe_noise_distribution.gaussian_std_dev();
+    let glwe_stddev = pbs_params.glwe_noise_distribution.gaussian_std_dev();
     let lwe_noise_distribution =
-    DynamicDistribution::new_t_uniform(46);
+        Gaussian::from_dispersion_parameter(lwe_stddev, 0.0);
     let glwe_noise_distribution =
-    DynamicDistribution::new_t_uniform(17);
+        Gaussian::from_dispersion_parameter(glwe_stddev, 0.0);
+
+    // let lwe_noise_distribution =
+    // DynamicDistribution::new_t_uniform(46);
+    // let glwe_noise_distribution =
+    // DynamicDistribution::new_t_uniform(17);
 
     let pbs_base_log = pbs_params.pbs_base_log;
     let pbs_level = pbs_params.pbs_level;
@@ -260,7 +260,7 @@ fn example(){
 
     // GPU --------------------------------
     let mut vec_cts = vec![ct1.clone()];
-    let size = 0;
+    let size = 128;
     for _ in 0..size{
         vec_cts.push(ct1.clone());
     }
