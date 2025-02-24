@@ -108,5 +108,13 @@ pub fn gpu_multi_pbs(streams: &CudaStreams, bsk: &LweMultiBitBootstrapKey<Vec<u6
     let start = std::time::Instant::now();
     cuda_multi_bit_programmable_bootstrap_lwe_ciphertext(&cuda_cts, &mut cuda_out_cts, &cuda_luts, &lut_indexes, &output_indexes, &input_indexes, &cuda_bsk, &streams);
     println!("GPU multi bit PBS took: {:?}", start.elapsed());
+
+    let start = std::time::Instant::now();
+    cuda_multi_bit_programmable_bootstrap_lwe_ciphertext(&cuda_cts, &mut cuda_out_cts, &cuda_luts, &lut_indexes, &output_indexes, &input_indexes, &cuda_bsk, &streams);
+    println!("GPU multi bit PBS took: {:?}", start.elapsed());
+
+    let start = std::time::Instant::now();
+    cuda_multi_bit_programmable_bootstrap_lwe_ciphertext(&cuda_cts, &mut cuda_out_cts, &cuda_luts, &lut_indexes, &output_indexes, &input_indexes, &cuda_bsk, &streams);
+    println!("GPU multi bit PBS took: {:?}", start.elapsed());
     return cuda_out_cts;
 }
