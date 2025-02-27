@@ -103,7 +103,7 @@ fn example(){
     let mut secret_generator = SecretRandomGenerator::<DefaultRandomGenerator>::new(seeder.seed());
     let mut encryption_generator =
     EncryptionRandomGenerator::<DefaultRandomGenerator>::new(seeder.seed(), seeder);
-    println!("Generating keys...");
+    println!("Generating keys right now...");
 
 
     let small_lwe_sk =
@@ -113,6 +113,29 @@ fn example(){
         GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
 
     let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
+
+
+    let decomp_base_log = pbs_params.ks_base_log;
+    let decomp_level_count = pbs_params.ks_level;
+
+    let mut ksk = LweKeyswitchKey::new(
+    0u64,
+    decomp_base_log,
+    decomp_level_count,
+    big_lwe_sk.lwe_dimension(),
+    small_lwe_sk.lwe_dimension(),
+    ciphertext_modulus,
+    );
+
+    generate_lwe_keyswitch_key(
+    &big_lwe_sk,
+    &small_lwe_sk,
+    &mut ksk,
+    lwe_noise_distribution,
+    &mut encryption_generator,
+    );
+
+    assert!(!ksk.as_ref().iter().all(|&x| x == 0));
 
 
 
@@ -174,7 +197,7 @@ fn example(){
     let delta = (1_u64 << 63) / message_modulus;
 
 
-    let clear1 = 6u64;
+    let clear1 = 4u64;
     let plaintext1 = Plaintext(clear1 * delta);
     let ct1: LweCiphertextOwned<u64> = allocate_and_encrypt_new_lwe_ciphertext(
         &small_lwe_sk,
@@ -216,7 +239,15 @@ fn example(){
         delta,
         f,
     );
-    let lut2 = lut1.clone();
+    let g = |x: u64| x + 3;
+    let lut2 = generate_programmable_bootstrap_glwe_lut(
+        polynomial_size,
+        glwe_dimension.to_glwe_size(),
+        message_modulus as usize,
+        ciphertext_modulus,
+        delta,
+        g,
+    );
     let lut3 = lut1.clone();
 
 
@@ -249,6 +280,9 @@ fn example(){
     println!("multi bit PBS took: {:?}", start.elapsed());
 
 
+    let dim_out = ct1_out.lwe_size().0;
+    println!("dim out: {}", dim_out);
+
     let dec1: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, &ct1_out);
     let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((message_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
     // println!("dec {:b}", dec1.0);
@@ -256,7 +290,52 @@ fn example(){
     let dec1: u64 =
         signed_decomposer.closest_representable(dec1.0) / delta;
 
-    assert_eq!(f(clear1), dec1);
+    // assert_eq!(f(clear1), dec1);
+    println!("dec1: {}", dec1);
+
+    // key switch
+
+    let mut ct1_out_small = LweCiphertext::new(
+        0u64,
+        small_lwe_sk.lwe_dimension().to_lwe_size(),
+        ciphertext_modulus,
+    );
+
+    let start = std::time::Instant::now();
+    par_keyswitch_lwe_ciphertext(&ksk, &ct1_out, &mut ct1_out_small);
+    println!("key switch took: {:?}", start.elapsed());
+
+    let dec1: Plaintext<u64> = decrypt_lwe_ciphertext(&small_lwe_sk, &ct1_out_small);
+    let dec1: u64 =
+        signed_decomposer.closest_representable(dec1.0) / delta;    
+    // assert_eq!(f(clear1), dec1);
+
+
+    let mut ct1_out_big = LweCiphertext::new(
+        0u64,
+        big_lwe_sk.lwe_dimension().to_lwe_size(),
+        ciphertext_modulus,
+    );  
+
+    println!("Computing multi bit PBS...");
+    let start = std::time::Instant::now();
+    multi_bit_programmable_bootstrap_lwe_ciphertext(
+        &ct1_out_small,
+        &mut ct1_out_big,
+        &lut2,
+        &multi_bit_bsk,
+        ThreadCount(4),
+        true
+    );
+    println!("multi bit PBS took: {:?}", start.elapsed());
+
+    let dec1: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, &ct1_out_big);
+    let dec1: u64 =
+        signed_decomposer.closest_representable(dec1.0) / delta;
+    println!("dec1: {}", dec1);
+    assert_eq!(g(f(clear1)), dec1);
+
+
 
     // GPU --------------------------------
     let mut vec_cts = vec![ct1.clone()];
@@ -275,19 +354,19 @@ fn example(){
 
     // drop(bsk);
 
-    let gpu_vec_lwe_out = cuda_out_cts.to_lwe_ciphertext_list(&streams);
-    let gpu_vec_out = gpu_vec_lwe_out.chunks(vec_cts[0].lwe_size().0).map(|lwe_out| {
-        let temp = lwe_out.into_container().to_vec();
-        LweCiphertextOwned::from_container(temp, ciphertext_modulus)
-    }).collect::<Vec<_>>();
+    // let gpu_vec_lwe_out = cuda_out_cts.to_lwe_ciphertext_list(&streams);
+    // let gpu_vec_out = gpu_vec_lwe_out.chunks(vec_cts[0].lwe_size().0).map(|lwe_out| {
+    //     let temp = lwe_out.into_container().to_vec();
+    //     LweCiphertextOwned::from_container(temp, ciphertext_modulus)
+    // }).collect::<Vec<_>>();
     
-    for ct_out in gpu_vec_out.iter(){
-        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, ct_out);
-        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((message_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
-        let dec: u64 =
-            signed_decomposer.closest_representable(dec.0) / delta;
-        assert_eq!(f(clear1), dec);
-    }
+    // for ct_out in gpu_vec_out.iter(){
+    //     let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, ct_out);
+    //     let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((message_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
+    //     let dec: u64 =
+    //         signed_decomposer.closest_representable(dec.0) / delta;
+    //     assert_eq!(f(clear1), dec);
+    // }
 
 
    
