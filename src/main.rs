@@ -369,6 +369,100 @@ fn example(){
     // }
 
 
+
+    // key switch to wopbs context ----------------
+
+    let wopbs_parameters = LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
+
+    let mut wopbs_boxed_seeder = new_seeder();
+    let wopbs_seeder = wopbs_boxed_seeder.as_mut();
+    let mut wopbs_secret_generator = SecretRandomGenerator::<DefaultRandomGenerator>::new(wopbs_seeder.seed());
+    let mut wopbs_encryption_generator =
+    EncryptionRandomGenerator::<DefaultRandomGenerator>::new(wopbs_seeder.seed(), wopbs_seeder);
+    println!("Generating wopbs keys right now...");
+
+    let wopbs_small_lwe_secret_key = allocate_and_generate_new_binary_lwe_secret_key(
+        wopbs_parameters.lwe_dimension,
+        &mut wopbs_secret_generator,
+    );
+
+    let wopbs_glwe_secret_key = allocate_and_generate_new_binary_glwe_secret_key(
+        wopbs_parameters.glwe_dimension,
+        wopbs_parameters.polynomial_size,
+        &mut wopbs_secret_generator,
+    );
+
+    let wopbs_large_lwe_secret_key = wopbs_glwe_secret_key.clone().into_lwe_secret_key();
+
+    let wopbs_bootstrap_key: LweBootstrapKeyOwned<u64> =
+        par_allocate_and_generate_new_lwe_bootstrap_key(
+            &wopbs_small_lwe_secret_key,
+            &wopbs_glwe_secret_key,
+            wopbs_parameters.pbs_base_log,
+            wopbs_parameters.pbs_level,
+            wopbs_parameters.glwe_noise_distribution,
+            wopbs_parameters.ciphertext_modulus,
+            &mut wopbs_encryption_generator,
+        );
+
+    let mut wopbs_small_bsk = FourierLweBootstrapKey::new(
+        wopbs_bootstrap_key.input_lwe_dimension(),
+        wopbs_bootstrap_key.glwe_size(),
+        wopbs_bootstrap_key.polynomial_size(),
+        wopbs_bootstrap_key.decomposition_base_log(),
+        wopbs_bootstrap_key.decomposition_level_count(),
+    );
+
+    par_convert_standard_lwe_bootstrap_key_to_fourier(&wopbs_bootstrap_key, &mut wopbs_small_bsk);
+
+    //KSK encryption_key -> small WoPBS key (used in the 1st KS in the extract bit)
+    let ksk_wopbs_large_to_wopbs_small = allocate_and_generate_new_lwe_keyswitch_key(
+        &wopbs_large_lwe_secret_key,
+        &wopbs_small_lwe_secret_key,
+        wopbs_parameters.ks_base_log,
+        wopbs_parameters.ks_level,
+        wopbs_parameters.lwe_noise_distribution,
+        wopbs_parameters.ciphertext_modulus,
+        &mut wopbs_encryption_generator,
+    );
+
+
+    // KSK to convert from input ciphertext key to the wopbs input one
+    let ksk_pbs_large_to_wopbs_large = allocate_and_generate_new_lwe_keyswitch_key(
+        &big_lwe_sk,
+        &wopbs_large_lwe_secret_key,
+        pbs_params.ks_base_log,
+        pbs_params.ks_level,
+        wopbs_parameters.lwe_noise_distribution,
+        wopbs_parameters.ciphertext_modulus,
+        &mut wopbs_encryption_generator,
+    );
+
+    // KSK large_wopbs_key -> small PBS key (used after the WoPBS computation to compute a
+    // classical PBS. This allows compatibility between PBS and WoPBS
+    let ksk_wopbs_large_to_pbs_small = allocate_and_generate_new_lwe_keyswitch_key(
+        &wopbs_large_lwe_secret_key,
+        &small_lwe_sk,
+        pbs_params.ks_base_log,
+        pbs_params.ks_level,
+        pbs_params.lwe_noise_distribution,
+        wopbs_parameters.ciphertext_modulus,
+        &mut wopbs_encryption_generator,
+    );
+
+    let cbs_pfpksk = par_allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list(
+        &wopbs_large_lwe_secret_key,
+        &wopbs_glwe_secret_key,
+        wopbs_parameters.pfks_base_log,
+        wopbs_parameters.pfks_level,
+        wopbs_parameters.pfks_noise_distribution,
+        wopbs_parameters.ciphertext_modulus,
+        &mut wopbs_encryption_generator,
+    );
+
+
+
+
    
 
     // -------------------
@@ -377,6 +471,8 @@ fn example(){
     // testing key switching -------
 
     let (cks, sks) = gen_keys(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64);
+
+    // let wopbs_key = WopbsKey::new_wopbs_key(cks, sks, parameters)
 
 
     let ksk: LweKeyswitchKey<Vec<u64>> = sks.key_switching_key;
