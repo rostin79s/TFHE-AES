@@ -197,7 +197,7 @@ fn example(){
     let delta = (1_u64 << 63) / message_modulus;
 
 
-    let clear1 = 4u64;
+    let clear1 = 11u64;
     let plaintext1 = Plaintext(clear1 * delta);
     let ct1: LweCiphertextOwned<u64> = allocate_and_encrypt_new_lwe_ciphertext(
         &small_lwe_sk,
@@ -229,7 +229,7 @@ fn example(){
 
 
 
-    let f = |x: u64| x * 2;
+    let f = |x: u64| x;
 
     let lut1: GlweCiphertextOwned<u64> = generate_programmable_bootstrap_glwe_lut(
         polynomial_size,
@@ -459,6 +459,104 @@ fn example(){
         wopbs_parameters.ciphertext_modulus,
         &mut wopbs_encryption_generator,
     );
+
+
+    let mut wopbs_ct1_out = LweCiphertextOwned::new(
+        0,
+        ksk_pbs_large_to_wopbs_large
+            .output_key_lwe_dimension()
+            .to_lwe_size(),
+        wopbs_parameters.ciphertext_modulus,
+    );
+
+    // Compute a key switch
+    par_keyswitch_lwe_ciphertext(
+        &ksk_pbs_large_to_wopbs_large,
+        &ct1_out,
+        &mut wopbs_ct1_out,
+    );
+
+
+    let dec = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &wopbs_ct1_out);
+    let dec: u64 =
+        signed_decomposer.closest_representable(dec.0) / delta;
+    println!("dec: {}", dec);
+
+    // extract bits
+
+    let fft = Fft::new(bsk.polynomial_size());
+    let fft = fft.as_view();
+    let mut buffers = ComputationBuffers::new();
+
+
+    let delta = (1u64 << 63) / (message_modulus);
+    // casting to usize is fine, ilog2 of u64 is guaranteed to be < 64
+    let delta_log = DeltaLog(delta.ilog2() as usize);
+    
+    println!("delta log: {}", delta_log.0);
+
+    let nb_bit_to_extract =
+        f64::log2((message_modulus) as f64) as usize;
+    
+    println!("nb_bit_to_extract: {}", nb_bit_to_extract);
+
+
+    let buffer_size_req =
+     convert_standard_lwe_bootstrap_key_to_fourier_mem_optimized_requirement(fft)
+         .unwrap()
+         .unaligned_bytes_required();
+
+    let buffer_size_req = buffer_size_req.max(extract_bits_from_lwe_ciphertext_mem_optimized_requirement::<u64>(
+        wopbs_large_lwe_secret_key.lwe_dimension(),
+        wopbs_small_lwe_secret_key.lwe_dimension(),
+        wopbs_small_bsk.glwe_size(),
+        wopbs_small_bsk.polynomial_size(),
+        fft
+    ).unwrap().unaligned_bytes_required());
+
+    buffers.resize(buffer_size_req);
+
+    let mut bit_extraction_output = LweCiphertextList::new(
+        0u64,
+        wopbs_small_lwe_secret_key.lwe_dimension().to_lwe_size(),
+        LweCiphertextCount(nb_bit_to_extract),
+        ciphertext_modulus,
+    );
+
+    extract_bits_from_lwe_ciphertext_mem_optimized(
+        &wopbs_ct1_out,
+        &mut bit_extraction_output,
+        &wopbs_small_bsk,
+        &ksk_wopbs_large_to_wopbs_small,
+        delta_log,
+        ExtractedBitsCount(nb_bit_to_extract),
+        fft,
+        buffers.stack(),
+    );
+
+    let size = bit_extraction_output.lwe_size().0;
+    let count = bit_extraction_output.lwe_ciphertext_count().0;
+    println!("count: {}", count);
+    println!("size: {}", size);
+
+    let whole_size = bit_extraction_output.clone().into_container().len();
+    println!("whole size: {}", whole_size);
+
+    // iterate through all next
+    
+    let bit_modulus: u64 = 2;
+    let delta = (1u64 << 63) / (bit_modulus) * 2;
+    bit_extraction_output.iter().all(|bit| {
+        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_secret_key, &bit);
+        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
+        let dec: u64 =
+            signed_decomposer.closest_representable(dec.0) / delta;
+        println!("dec: {}", dec);
+        true
+    });
+
+    
+
 
 
 
