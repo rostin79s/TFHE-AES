@@ -7,6 +7,7 @@ use client::client::Client;
 use gpu::pbs::{gpu_multi_pbs, gpu_pbs};
 use server::server::Server;
 use gpu::key_switch::{gpu_key_switch, cpu_key_switch};
+use gpu::extract_bits::{cpu_extract_bits, gpu_extract_bits};
 
 use tfhe::core_crypto::commons::math::random::BoundedDistribution;
 use tfhe::core_crypto::gpu::cuda_keyswitch_lwe_ciphertext;
@@ -523,30 +524,50 @@ fn example(){
         ciphertext_modulus,
     );
 
-    extract_bits_from_lwe_ciphertext_mem_optimized(
-        &wopbs_ct1_out,
-        &mut bit_extraction_output,
-        &wopbs_small_bsk,
-        &ksk_wopbs_large_to_wopbs_small,
+    let start = std::time::Instant::now();
+    // extract_bits_from_lwe_ciphertext_mem_optimized(
+    //     &wopbs_ct1_out,
+    //     &mut bit_extraction_output,
+    //     &wopbs_small_bsk,
+    //     &ksk_wopbs_large_to_wopbs_small,
+    //     delta_log,
+    //     ExtractedBitsCount(nb_bit_to_extract),
+    //     fft,
+    //     buffers.stack(),
+    // );
+    // cpu_extract_bits(
+    //     bit_extraction_output.as_mut_view(),
+    //     wopbs_ct1_out.as_view(),
+    //     ksk_wopbs_large_to_wopbs_small.as_view(),
+    //     wopbs_small_bsk.as_view(),
+    //     delta_log,
+    //     ExtractedBitsCount(nb_bit_to_extract),
+    //     fft,
+    //     buffers.stack(),
+    // );
+
+    gpu_extract_bits(
+        &streams,
+        &wopbs_bootstrap_key,
+        bit_extraction_output.as_mut_view(),
+        wopbs_ct1_out.as_view(),
+        ksk_wopbs_large_to_wopbs_small.as_view(),
+        wopbs_small_bsk.as_view(),
         delta_log,
         ExtractedBitsCount(nb_bit_to_extract),
         fft,
         buffers.stack(),
     );
+    println!("extract bits took: {:?}", start.elapsed());
 
-    let size = bit_extraction_output.lwe_size().0;
-    let count = bit_extraction_output.lwe_ciphertext_count().0;
-    println!("count: {}", count);
-    println!("size: {}", size);
-
-    let whole_size = bit_extraction_output.clone().into_container().len();
-    println!("whole size: {}", whole_size);
 
     // iterate through all next
     
     let bit_modulus: u64 = 2;
     let delta = (1u64 << 63) / (bit_modulus) * 2;
+    let mut vec_bits = Vec::new();
     bit_extraction_output.iter().all(|bit| {
+        vec_bits.push(bit.clone());
         let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_secret_key, &bit);
         let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
         let dec: u64 =
@@ -554,6 +575,14 @@ fn example(){
         println!("dec: {}", dec);
         true
     });
+    println!("bits extracted ...");
+
+
+
+    // gpu extract bits
+
+    
+
 
     
 
