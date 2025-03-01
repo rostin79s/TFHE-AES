@@ -27,7 +27,7 @@ use rayon::prelude::*;
 
 use rand::Rng;
 
-/// Struct to define command-line arguments
+//  Struct to define command-line arguments
 #[derive(Parser, Debug)]
 struct Args {
     #[arg(long, value_parser)]
@@ -525,16 +525,16 @@ fn example(){
     );
 
     let start = std::time::Instant::now();
-    // extract_bits_from_lwe_ciphertext_mem_optimized(
-    //     &wopbs_ct1_out,
-    //     &mut bit_extraction_output,
-    //     &wopbs_small_bsk,
-    //     &ksk_wopbs_large_to_wopbs_small,
-    //     delta_log,
-    //     ExtractedBitsCount(nb_bit_to_extract),
-    //     fft,
-    //     buffers.stack(),
-    // );
+    extract_bits_from_lwe_ciphertext_mem_optimized(
+        &wopbs_ct1_out,
+        &mut bit_extraction_output,
+        &wopbs_small_bsk,
+        &ksk_wopbs_large_to_wopbs_small,
+        delta_log,
+        ExtractedBitsCount(nb_bit_to_extract),
+        fft,
+        buffers.stack(),
+    );
     // cpu_extract_bits(
     //     bit_extraction_output.as_mut_view(),
     //     wopbs_ct1_out.as_view(),
@@ -546,18 +546,18 @@ fn example(){
     //     buffers.stack(),
     // );
 
-    gpu_extract_bits(
-        &streams,
-        &wopbs_bootstrap_key,
-        bit_extraction_output.as_mut_view(),
-        wopbs_ct1_out.as_view(),
-        ksk_wopbs_large_to_wopbs_small.as_view(),
-        wopbs_small_bsk.as_view(),
-        delta_log,
-        ExtractedBitsCount(nb_bit_to_extract),
-        fft,
-        buffers.stack(),
-    );
+    // gpu_extract_bits(
+    //     &streams,
+    //     &wopbs_bootstrap_key,
+    //     bit_extraction_output.as_mut_view(),
+    //     wopbs_ct1_out.as_view(),
+    //     ksk_wopbs_large_to_wopbs_small.as_view(),
+    //     wopbs_small_bsk.as_view(),
+    //     delta_log,
+    //     ExtractedBitsCount(nb_bit_to_extract),
+    //     fft,
+    //     buffers.stack(),
+    // );
     println!("extract bits took: {:?}", start.elapsed());
 
 
@@ -576,6 +576,81 @@ fn example(){
         true
     });
     println!("bits extracted ...");
+
+    let message_bits: usize = message_modulus.ilog2() as usize;
+
+    let delta_log_lut = DeltaLog(64 - message_bits);
+
+    let wopbs_polynomial_size = wopbs_parameters.polynomial_size;
+
+    let lut_size = wopbs_polynomial_size.0;
+    let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
+
+    for i in 0..lut_size {
+        lut.push((i as u64 % (1 << message_bits)) << delta_log_lut.0);
+    }
+
+    let lut_as_polynomial_list = PolynomialList::from_container(lut, wopbs_polynomial_size);
+    println!("lut size: {}", lut_size);
+
+    let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(1);
+
+    let mut output_cbs_vp = LweCiphertextList::new(
+        0u64,
+        wopbs_large_lwe_secret_key.lwe_dimension().to_lwe_size(),
+        number_of_luts_and_output_vp_ciphertexts,
+        ciphertext_modulus,
+    );
+
+    println!("Computing circuit bootstrap...");
+    let buffer_size_req = buffer_size_req.max(
+    circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized_requirement::<
+        u64,
+    >(
+        LweCiphertextCount(nb_bit_to_extract),
+        number_of_luts_and_output_vp_ciphertexts,
+        LweSize(wopbs_parameters.lwe_dimension.0),
+        PolynomialCount(1),
+        wopbs_small_bsk.output_lwe_dimension().to_lwe_size(),
+        wopbs_small_bsk.glwe_size(),
+        wopbs_polynomial_size,
+        wopbs_parameters.cbs_level,
+        fft,
+    )
+    .unwrap()
+    .unaligned_bytes_required(),
+    );
+
+    println!("buffer size req: {}", buffer_size_req);
+
+    buffers.resize(buffer_size_req);
+
+    let start = std::time::Instant::now();
+    circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized(
+    &bit_extraction_output,
+    &mut output_cbs_vp,
+    &lut_as_polynomial_list,
+    &wopbs_small_bsk,
+    &cbs_pfpksk,
+    wopbs_parameters.cbs_base_log,
+    wopbs_parameters.cbs_level,
+    fft,
+    buffers.stack(),
+    );
+    println!("circuit_bootstrap_boolean_vertical_packing took: {:?}", start.elapsed());
+
+    let result_ct = output_cbs_vp.iter().next().unwrap();
+    let decomposer = SignedDecomposer::new(
+        DecompositionBaseLog(nb_bit_to_extract),
+        DecompositionLevelCount(1),
+    );
+
+    let decrypted_message = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &result_ct);
+    let decoded_message = decomposer.closest_representable(decrypted_message.0) >> delta_log_lut.0;
+
+    println!("decoded message: {}", decoded_message);
+
+    
 
 
 
