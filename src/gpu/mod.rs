@@ -68,3 +68,19 @@ use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::circuit_bootstrap_boole
 use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::vertical_packing;
 use dyn_stack::PodStack;
 use tfhe_fft::c64;
+
+pub fn VecLwe_to_LweList(
+    vec_lwe_in: &Vec<LweCiphertext<Vec<u64>>>,
+) -> LweCiphertextList<Vec<u64>>
+{
+    let lwe_size = vec_lwe_in[0].lwe_size();
+    let ciphertext_modulus = vec_lwe_in[0].ciphertext_modulus();
+
+    let mut cts_container = Vec::new();
+    for lwe_in in vec_lwe_in.iter(){
+        cts_container.extend(lwe_in.clone().into_container());
+    }
+
+    let lwe_list_out = LweCiphertextList::from_container(cts_container, lwe_size, ciphertext_modulus);
+    return lwe_list_out;
+}

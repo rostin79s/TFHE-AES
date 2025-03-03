@@ -4,8 +4,9 @@ mod tables;
 mod gpu;
 
 use client::client::Client;
-use gpu::cbs_vp::cpu_cbc_vp;
+use gpu::cbs_vp::{cpu_cbs_vp, generate_lut_vp};
 use gpu::pbs::{gpu_multi_pbs, gpu_pbs};
+use gpu::VecLwe_to_LweList;
 use server::server::Server;
 use gpu::key_switch::{gpu_key_switch, cpu_key_switch};
 use gpu::extract_bits::{cpu_extract_bits, gpu_extract_bits};
@@ -418,6 +419,8 @@ fn example(){
     par_convert_standard_lwe_bootstrap_key_to_fourier(&wopbs_bootstrap_key, &mut wopbs_small_bsk);
 
     //KSK encryption_key -> small WoPBS key (used in the 1st KS in the extract bit)
+    println!("wopbs output key lwe dimension: {}", wopbs_large_lwe_secret_key.lwe_dimension().0);
+    println!("wopbs input key lwe dimension: {}", wopbs_small_lwe_secret_key.lwe_dimension().0);
     let ksk_wopbs_large_to_wopbs_small = allocate_and_generate_new_lwe_keyswitch_key(
         &wopbs_large_lwe_secret_key,
         &wopbs_small_lwe_secret_key,
@@ -427,6 +430,9 @@ fn example(){
         wopbs_parameters.ciphertext_modulus,
         &mut wopbs_encryption_generator,
     );
+
+    println!("wopbs output key lwe dimension: {}", ksk_wopbs_large_to_wopbs_small.input_key_lwe_dimension().0);
+    println!("wopbs input key lwe dimension: {}", ksk_wopbs_large_to_wopbs_small.output_lwe_size().0);
 
 
     // KSK to convert from input ciphertext key to the wopbs input one
@@ -570,7 +576,7 @@ fn example(){
     bit_extraction_output.iter().all(|bit| {
         vec_bits.push(bit.clone());
         let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_secret_key, &bit);
-        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
+        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2()) as usize), DecompositionLevelCount(1));
         let dec: u64 =
             signed_decomposer.closest_representable(dec.0) / delta;
         println!("dec: {}", dec);
@@ -578,55 +584,47 @@ fn example(){
     });
     println!("bits extracted ...");
 
-    let message_bits: usize = message_modulus.ilog2() as usize;
-    println!("message bits: {}", message_bits);
-
-    let delta_log_lut = DeltaLog(64 - message_bits);
-
-    let wopbs_polynomial_size = wopbs_parameters.polynomial_size;
-    println!("wopbs_polynomial_size: {}", wopbs_polynomial_size.0);
-    let poly_size = wopbs_small_bsk.polynomial_size().0;
-    println!("poly size: {}", poly_size);
 
 
 
-
-    // f1 is msb bit, f2 is 2nd msb bit, f3 is 3rd msb bit, f4 is lsb bit
-    let f1 = |x: u64| x >> 3;
-    let f2 = |x: u64| (x >> 2) & 1;
-    let f3 = |x: u64| (x >> 1) & 1;
-    let f4 = |x: u64| x & 1;
-
-    let vec_functions = [f1, f2, f3, f4];
-
-    let output_ciphertexts_count = 4;
-
-    let lut_size = wopbs_polynomial_size.0;
-    let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
-    for i in  0..output_ciphertexts_count{
-        for j in 0..lut_size {
-            let elem = vec_functions[i](j as u64 % (1 << message_bits)) << delta_log_lut.0;
-            lut.push(elem);
-        }
-    }
-    let lut_as_polynomial_list = PolynomialList::from_container(lut, wopbs_polynomial_size);
-
-    let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_ciphertexts_count);
+    let f1: fn(u64) -> u64 = |x: u64| x;
+    // let f2 = |x: u64| x + 1;
+    // let f3 = |x: u64| x - 1;
+    // let f4 = |x: u64| x + 2;
+    let mut vec_functions = Vec::new();
+    vec_functions.push(f1);
 
 
-    let vec_out_bits = cpu_cbc_vp(
+    let lut = generate_lut_vp(&wopbs_parameters, &vec_functions);
+
+    let vec_out_bits = cpu_cbs_vp(
         &wopbs_parameters,
         &bit_extraction_output,
-        &lut_as_polynomial_list,
+        &lut,
         &wopbs_small_bsk,
-        &ksk_wopbs_large_to_pbs_small,
+        &ksk_wopbs_large_to_wopbs_small,
         &wopbs_large_lwe_secret_key,
         &cbs_pfpksk,
-        wopbs_parameters.cbs_base_log,
-        wopbs_parameters.cbs_level,
         &fft,
         &mut buffers,
     );
+
+    let new_bits = VecLwe_to_LweList(&vec_out_bits);
+
+    let vec_out_bits = cpu_cbs_vp(
+        &wopbs_parameters,
+        &new_bits,
+        &lut,
+        &wopbs_small_bsk,
+        &ksk_wopbs_large_to_wopbs_small,
+        &wopbs_large_lwe_secret_key,
+        &cbs_pfpksk,
+        &fft,
+        &mut buffers,
+    );
+
+
+
 
     
 
