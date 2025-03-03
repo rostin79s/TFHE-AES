@@ -578,22 +578,39 @@ fn example(){
     println!("bits extracted ...");
 
     let message_bits: usize = message_modulus.ilog2() as usize;
+    println!("message bits: {}", message_bits);
 
     let delta_log_lut = DeltaLog(64 - message_bits);
 
     let wopbs_polynomial_size = wopbs_parameters.polynomial_size;
+    println!("wopbs_polynomial_size: {}", wopbs_polynomial_size.0);
+    let poly_size = wopbs_small_bsk.polynomial_size().0;
+    println!("poly size: {}", poly_size);
 
     let lut_size = wopbs_polynomial_size.0;
     let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
 
-    for i in 0..lut_size {
-        lut.push((i as u64 % (1 << message_bits)) << delta_log_lut.0);
-    }
 
+
+    // f1 is msb bit, f2 is 2nd msb bit, f3 is 3rd msb bit, f4 is lsb bit
+    let f1 = |x: u64| x >> 3;
+    let f2 = |x: u64| (x >> 2) & 1;
+    let f3 = |x: u64| (x >> 1) & 1;
+    let f4 = |x: u64| x & 1;
+
+    let vec_functions = [f1, f2, f3, f4];
+
+    let output_ciphertexts_count = 4;
+    for i in  0..output_ciphertexts_count{
+        for j in 0..lut_size {
+            let elem = vec_functions[i](j as u64 % (1 << message_bits)) << delta_log_lut.0;
+            lut.push(elem);
+        }
+    }
     let lut_as_polynomial_list = PolynomialList::from_container(lut, wopbs_polynomial_size);
     println!("lut size: {}", lut_size);
 
-    let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(1);
+    let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_ciphertexts_count);
 
     let mut output_cbs_vp = LweCiphertextList::new(
         0u64,
@@ -610,7 +627,7 @@ fn example(){
         LweCiphertextCount(nb_bit_to_extract),
         number_of_luts_and_output_vp_ciphertexts,
         LweSize(wopbs_parameters.lwe_dimension.0),
-        PolynomialCount(1),
+        PolynomialCount(output_ciphertexts_count),
         wopbs_small_bsk.output_lwe_dimension().to_lwe_size(),
         wopbs_small_bsk.glwe_size(),
         wopbs_polynomial_size,
@@ -639,16 +656,37 @@ fn example(){
     );
     println!("circuit_bootstrap_boolean_vertical_packing took: {:?}", start.elapsed());
 
-    let result_ct = output_cbs_vp.iter().next().unwrap();
-    let decomposer = SignedDecomposer::new(
-        DecompositionBaseLog(nb_bit_to_extract),
-        DecompositionLevelCount(1),
-    );
+    let size = output_cbs_vp.lwe_ciphertext_count().0;
+    println!("size: {}", size);
 
-    let decrypted_message = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &result_ct);
-    let decoded_message = decomposer.closest_representable(decrypted_message.0) >> delta_log_lut.0;
+    let bit_modulus: u64 = 16;
+    let delta = (1u64 << 63) / (bit_modulus) * 2;
+    let mut vec_out_bits = Vec::new();
+    output_cbs_vp.iter().all(|bit| {
+        
+        let mut switched_bit = LweCiphertext::new(0, ksk_wopbs_large_to_wopbs_small.output_lwe_size(), ciphertext_modulus);
+        keyswitch_lwe_ciphertext(&ksk_wopbs_large_to_wopbs_small, &bit, &mut switched_bit);
+        vec_out_bits.push(switched_bit.clone());
+        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_secret_key, &switched_bit);
+        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2()) as usize), DecompositionLevelCount(1));
+        let dec: u64 =
+            signed_decomposer.closest_representable(dec.0) / delta;
+        println!("dec: {}", dec);
+        true
+    });
 
-    println!("decoded message: {}", decoded_message);
+
+
+    // let result_ct = output_cbs_vp.iter().next().unwrap();
+    // let decomposer = SignedDecomposer::new(
+    //     DecompositionBaseLog(nb_bit_to_extract),
+    //     DecompositionLevelCount(1),
+    // );
+
+    // let decrypted_message = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &result_ct);
+    // let decoded_message = decomposer.closest_representable(decrypted_message.0) >> delta_log_lut.0;
+
+    // println!("decoded message: {}", decoded_message);
 
     
 
