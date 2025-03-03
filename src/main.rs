@@ -4,6 +4,7 @@ mod tables;
 mod gpu;
 
 use client::client::Client;
+use gpu::cbs_vp::cpu_cbc_vp;
 use gpu::pbs::{gpu_multi_pbs, gpu_pbs};
 use server::server::Server;
 use gpu::key_switch::{gpu_key_switch, cpu_key_switch};
@@ -587,8 +588,6 @@ fn example(){
     let poly_size = wopbs_small_bsk.polynomial_size().0;
     println!("poly size: {}", poly_size);
 
-    let lut_size = wopbs_polynomial_size.0;
-    let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
 
 
 
@@ -601,6 +600,9 @@ fn example(){
     let vec_functions = [f1, f2, f3, f4];
 
     let output_ciphertexts_count = 4;
+
+    let lut_size = wopbs_polynomial_size.0;
+    let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
     for i in  0..output_ciphertexts_count{
         for j in 0..lut_size {
             let elem = vec_functions[i](j as u64 % (1 << message_bits)) << delta_log_lut.0;
@@ -608,91 +610,23 @@ fn example(){
         }
     }
     let lut_as_polynomial_list = PolynomialList::from_container(lut, wopbs_polynomial_size);
-    println!("lut size: {}", lut_size);
 
     let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_ciphertexts_count);
 
-    let mut output_cbs_vp = LweCiphertextList::new(
-        0u64,
-        wopbs_large_lwe_secret_key.lwe_dimension().to_lwe_size(),
-        number_of_luts_and_output_vp_ciphertexts,
-        ciphertext_modulus,
-    );
 
-    println!("Computing circuit bootstrap...");
-    let buffer_size_req = buffer_size_req.max(
-    circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized_requirement::<
-        u64,
-    >(
-        LweCiphertextCount(nb_bit_to_extract),
-        number_of_luts_and_output_vp_ciphertexts,
-        LweSize(wopbs_parameters.lwe_dimension.0),
-        PolynomialCount(output_ciphertexts_count),
-        wopbs_small_bsk.output_lwe_dimension().to_lwe_size(),
-        wopbs_small_bsk.glwe_size(),
-        wopbs_polynomial_size,
+    let vec_out_bits = cpu_cbc_vp(
+        &wopbs_parameters,
+        &bit_extraction_output,
+        &lut_as_polynomial_list,
+        &wopbs_small_bsk,
+        &ksk_wopbs_large_to_pbs_small,
+        &wopbs_large_lwe_secret_key,
+        &cbs_pfpksk,
+        wopbs_parameters.cbs_base_log,
         wopbs_parameters.cbs_level,
-        fft,
-    )
-    .unwrap()
-    .unaligned_bytes_required(),
+        &fft,
+        &mut buffers,
     );
-
-    println!("buffer size req: {}", buffer_size_req);
-
-    buffers.resize(buffer_size_req);
-
-    let start = std::time::Instant::now();
-    circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized(
-    &bit_extraction_output,
-    &mut output_cbs_vp,
-    &lut_as_polynomial_list,
-    &wopbs_small_bsk,
-    &cbs_pfpksk,
-    wopbs_parameters.cbs_base_log,
-    wopbs_parameters.cbs_level,
-    fft,
-    buffers.stack(),
-    );
-    println!("circuit_bootstrap_boolean_vertical_packing took: {:?}", start.elapsed());
-
-    let size = output_cbs_vp.lwe_ciphertext_count().0;
-    println!("size: {}", size);
-
-    let bit_modulus: u64 = 16;
-    let delta = (1u64 << 63) / (bit_modulus) * 2;
-    let mut vec_out_bits = Vec::new();
-    output_cbs_vp.iter().all(|bit| {
-        
-        let mut switched_bit = LweCiphertext::new(0, ksk_wopbs_large_to_wopbs_small.output_lwe_size(), ciphertext_modulus);
-        keyswitch_lwe_ciphertext(&ksk_wopbs_large_to_wopbs_small, &bit, &mut switched_bit);
-        vec_out_bits.push(switched_bit.clone());
-        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_secret_key, &switched_bit);
-        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2()) as usize), DecompositionLevelCount(1));
-        let dec: u64 =
-            signed_decomposer.closest_representable(dec.0) / delta;
-        println!("dec: {}", dec);
-        true
-    });
-
-
-
-    // let result_ct = output_cbs_vp.iter().next().unwrap();
-    // let decomposer = SignedDecomposer::new(
-    //     DecompositionBaseLog(nb_bit_to_extract),
-    //     DecompositionLevelCount(1),
-    // );
-
-    // let decrypted_message = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &result_ct);
-    // let decoded_message = decomposer.closest_representable(decrypted_message.0) >> delta_log_lut.0;
-
-    // println!("decoded message: {}", decoded_message);
-
-    
-
-
-
-    // gpu extract bits
 
     
 
