@@ -63,6 +63,16 @@ fn example(){
     let dec1 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &ct1_out);
 
 
+    // extract bits on normal pbs
+    println!("extracting bits on normal pbs");
+
+    let fft = Fft::new(bsk.polynomial_size());
+    let fft = fft.as_view();
+    let mut buffers = ComputationBuffers::new();
+
+    let pbs_bits = cpu_eb(&FHEParameters::MultiBit(pbs_params), &small_lwe_sk, &big_lwe_sk, &ksk, &fourier_bsk, &ct1_out, &mut buffers, &fft);
+
+
 
     // GPU --------------------------------
     let mut vec_cts = vec![ct1.clone()];
@@ -99,18 +109,18 @@ fn example(){
 
     // key switch to wopbs context ----------------
 
-    let wopbs_parameters = LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
+    let wopbs_params = LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
 
-    let (mut wopbs_boxed_seeder, mut wopbs_encryption_generator, wopbs_small_lwe_secret_key, wopbs_glwe_secret_key, wopbs_big_lwe_secret_key) =  cpu_seed(&FHEParameters::Wopbs(wopbs_parameters));
+    let (mut wopbs_boxed_seeder, mut wopbs_encryption_generator, wopbs_small_lwe_secret_key, wopbs_glwe_secret_key, wopbs_big_lwe_secret_key) =  cpu_seed(&FHEParameters::Wopbs(wopbs_params));
 
 
-    let (wopbs_bsk, wopbs_fourier_bsk) = cpu_gen_bsk(&FHEParameters::Wopbs(wopbs_parameters), &mut wopbs_boxed_seeder, &wopbs_small_lwe_secret_key, &wopbs_glwe_secret_key);
+    let (wopbs_bsk, wopbs_fourier_bsk) = cpu_gen_bsk(&FHEParameters::Wopbs(wopbs_params), &mut wopbs_boxed_seeder, &wopbs_small_lwe_secret_key, &wopbs_glwe_secret_key);
 
-    let (ksk_wopbs_large_to_wopbs_small, ksk_pbs_large_to_wopbs_large, ksk_wopbs_large_to_pbs_small, cbs_pfpksk) = cpu_gen_wopbs_keys(&pbs_params, &small_lwe_sk, &big_lwe_sk, &wopbs_parameters, &mut wopbs_encryption_generator, &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &wopbs_glwe_secret_key);
+    let (ksk_wopbs_large_to_wopbs_small, ksk_pbs_large_to_wopbs_large, ksk_wopbs_large_to_pbs_small, cbs_pfpksk) = cpu_gen_wopbs_keys(&pbs_params, &small_lwe_sk, &big_lwe_sk, &wopbs_params, &mut wopbs_encryption_generator, &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &wopbs_glwe_secret_key);
 
 
     let wopbs_ct1_out = cpu_ksk(&ksk_pbs_large_to_wopbs_large, &ct1_out);
-    let wopbs_dec = cpu_decrypt(&FHEParameters::Wopbs(wopbs_parameters), &wopbs_big_lwe_secret_key, &wopbs_ct1_out);
+    let wopbs_dec = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_secret_key, &wopbs_ct1_out);
     println!("wopbs dec: {}", wopbs_dec);
 
 
@@ -123,7 +133,7 @@ fn example(){
 
 
 
-    let bits = cpu_eb(&wopbs_parameters, &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &wopbs_glwe_secret_key, &ksk_wopbs_large_to_wopbs_small, &wopbs_fourier_bsk, &wopbs_ct1_out, &mut buffers, &fft);
+    let bits = cpu_eb(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &ksk_wopbs_large_to_wopbs_small, &wopbs_fourier_bsk, &wopbs_ct1_out, &mut buffers, &fft);
 
 
     let f1: fn(u64) -> u64 = |x: u64| x + 1;
@@ -131,10 +141,10 @@ fn example(){
     vec_functions.push(f1);
 
 
-    let lut = cpu_generate_lut_vp(&wopbs_parameters, &vec_functions);
+    let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions);
 
     let vec_out_bits = cpu_cbs_vp(
-        &wopbs_parameters,
+        &wopbs_params,
         &bits,
         &lut,
         &wopbs_fourier_bsk,
@@ -148,7 +158,7 @@ fn example(){
     let new_bits = cpu_veclwe_to_lwelist(&vec_out_bits);
 
     let vec_out_bits = cpu_cbs_vp(
-        &wopbs_parameters,
+        &wopbs_params,
         &new_bits,
         &lut,
         &wopbs_fourier_bsk,

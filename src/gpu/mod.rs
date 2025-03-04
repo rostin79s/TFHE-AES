@@ -310,7 +310,7 @@ pub fn cpu_decrypt
 
     let delta = (1_u64 << 63) / plaintext_modulus;
     let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, &ct);
-    let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((plaintext_modulus.ilog2()) as usize), DecompositionLevelCount(1));
+    let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((plaintext_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
     let dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
 
     return dec;

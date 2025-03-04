@@ -3,10 +3,9 @@ use super::*;
 
 pub fn cpu_eb
 (
-    wopbs_parameters: &WopbsParameters,
+    wopbs_parameters: &FHEParameters,
     wopbs_small_lwe_secret_key: &LweSecretKey<Vec<u64>>,
     wopbs_big_lwe_secret_key: &LweSecretKey<Vec<u64>>,
-    wopbs_glwe_secret_key: &GlweSecretKey<Vec<u64>>,
     ksk_wopbs_large_to_wopbs_small: &LweKeyswitchKey<Vec<u64>>,
     wopbs_fourier_bsk: &FourierLweBootstrapKey<ABox<[c64], ConstAlign<128>>>,
     ct: &LweCiphertext<Vec<u64>>,
@@ -16,10 +15,14 @@ pub fn cpu_eb
 ) -> LweCiphertextList<Vec<u64>>
 {
 
-    let ciphertext_modulus = ct.ciphertext_modulus();
-    let plaintext_modulus = wopbs_parameters.message_modulus.0 * wopbs_parameters.carry_modulus.0;
+    let plaintext_modulus = match wopbs_parameters {
+        FHEParameters::MultiBit(params) => params.message_modulus.0 * params.carry_modulus.0,
+        FHEParameters::Wopbs(params) => params.message_modulus.0 * params.carry_modulus.0,
+    };
+    
     let nb_bit_to_extract = plaintext_modulus.ilog2() as usize;
     let delta_log = DeltaLog(63 - nb_bit_to_extract);
+    let ciphertext_modulus = ct.ciphertext_modulus();
 
     let buffer_size_req = extract_bits_from_lwe_ciphertext_mem_optimized_requirement::<u64>(
         wopbs_big_lwe_secret_key.lwe_dimension(),
