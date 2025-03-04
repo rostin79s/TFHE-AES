@@ -17,7 +17,7 @@ use tfhe::{
             keyswitch_lwe_ciphertext, LweCiphertext, LweCiphertextCount, LweCiphertextList, LweKeyswitchKey, LweSize
         }
     }, integer::wopbs, shortint::{
-        prelude::LweDimension, MultiBitPBSParameters, WopbsParameters
+        prelude::LweDimension, CarryModulus, MessageModulus, MultiBitPBSParameters, WopbsParameters
     }
 };
 
@@ -63,6 +63,40 @@ use aligned_vec::CACHELINE_ALIGN;
 pub enum FHEParameters{
     MultiBit(MultiBitPBSParameters),
     Wopbs(WopbsParameters),
+}
+
+ // 1 :   2, 10,  678,    2, 15,     4,  3,     1, 11,     2, 16,    136, 6.4e-20
+ pub const PARAM_OPT: WopbsParameters =
+ WopbsParameters {
+     lwe_dimension: LweDimension(678),
+     glwe_dimension: GlweDimension(2),
+     polynomial_size: PolynomialSize(1024),
+     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+         3.0517578125e-05,
+     )),
+     glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+         3.162026630747649e-16,
+     )),
+     pbs_base_log: DecompositionBaseLog(15),
+     pbs_level: DecompositionLevelCount(2),
+     ks_level: DecompositionLevelCount(4),
+     ks_base_log: DecompositionBaseLog(3),
+     pfks_level: DecompositionLevelCount(2),
+     pfks_base_log: DecompositionBaseLog(16),
+     pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+         3.162026630747649e-16,
+     )),
+     cbs_level: DecompositionLevelCount(1),
+     cbs_base_log: DecompositionBaseLog(11),
+     message_modulus: MessageModulus(2),
+     carry_modulus: CarryModulus(1),
+     ciphertext_modulus: CiphertextModulus::new_native(),
+     encryption_key_choice: EncryptionKeyChoice::Big,
+ };
+
+
+pub fn cpu_params() -> WopbsParameters{
+    return PARAM_OPT;
 }
 
 pub fn cpu_seed(

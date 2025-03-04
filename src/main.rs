@@ -1,7 +1,7 @@
 mod gpu;
 
 use gpu::{
-    cbs_vp::*, cpu_decrypt, cpu_encrypt, cpu_gen_bsk, cpu_gen_ksk, cpu_gen_multibsk, cpu_gen_wopbs_keys, cpu_seed, cpu_veclwe_to_lwelist, extract_bits::*, key_switch::*, pbs::*, FHEParameters
+    cbs_vp::*, cpu_decrypt, cpu_encrypt, cpu_gen_bsk, cpu_gen_ksk, cpu_gen_multibsk, cpu_gen_wopbs_keys, cpu_params, cpu_seed, cpu_veclwe_to_lwelist, extract_bits::*, key_switch::*, pbs::*, FHEParameters
 };
 use tfhe::{core_crypto::{gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, par_allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list, ComputationBuffers, Fft}}, integer::wopbs, shortint::{gen_keys, parameters::{LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64}}};
 use tfhe::core_crypto::prelude::par_allocate_and_generate_new_lwe_bootstrap_key;
@@ -74,40 +74,10 @@ fn example(){
 
 
 
-    // GPU --------------------------------
-    let mut vec_cts = vec![ct1.clone()];
-    let size = 128;
-    for _ in 0..size{
-        vec_cts.push(ct1.clone());
-    }
-
-    let mut vec_luts = vec![lut1.clone()];
-    for _ in 0..size{
-        vec_luts.push(lut1.clone());
-    }
-
-    // let cuda_out_cts = gpu_pbs(&streams, &bsk, &vec_cts, &vec_luts);
-    let cuda_out_cts = gpu_multi_pbs(&streams, &multibsk, &vec_cts, &vec_luts);
-
-    // drop(bsk);
-
-    // let gpu_vec_lwe_out = cuda_out_cts.to_lwe_ciphertext_list(&streams);
-    // let gpu_vec_out = gpu_vec_lwe_out.chunks(vec_cts[0].lwe_size().0).map(|lwe_out| {
-    //     let temp = lwe_out.into_container().to_vec();
-    //     LweCiphertextOwned::from_container(temp, ciphertext_modulus)
-    // }).collect::<Vec<_>>();
-    
-    // for ct_out in gpu_vec_out.iter(){
-    //     let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, ct_out);
-    //     let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((message_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
-    //     let dec: u64 =
-    //         signed_decomposer.closest_representable(dec.0) / delta;
-    //     assert_eq!(f(clear1), dec);
-    // }
+    // key switch to wopbs context ---------------------------------------------
 
 
-
-    // key switch to wopbs context ----------------
+    // let wopbs_params = cpu_params();
 
     let wopbs_params = LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
 
@@ -170,6 +140,38 @@ fn example(){
     );
 
 
+
+    // GPU --------------------------------
+    let mut vec_cts = vec![ct1.clone()];
+    let size = 128;
+    for _ in 0..size{
+        vec_cts.push(ct1.clone());
+    }
+
+    let mut vec_luts = vec![lut1.clone()];
+    for _ in 0..size{
+        vec_luts.push(lut1.clone());
+    }
+
+    // let cuda_out_cts = gpu_pbs(&streams, &bsk, &vec_cts, &vec_luts);
+    let cuda_out_cts = gpu_multi_pbs(&streams, &multibsk, &vec_cts, &vec_luts);
+
+    // drop(bsk);
+
+    // let gpu_vec_lwe_out = cuda_out_cts.to_lwe_ciphertext_list(&streams);
+    // let gpu_vec_out = gpu_vec_lwe_out.chunks(vec_cts[0].lwe_size().0).map(|lwe_out| {
+    //     let temp = lwe_out.into_container().to_vec();
+    //     LweCiphertextOwned::from_container(temp, ciphertext_modulus)
+    // }).collect::<Vec<_>>();
+    
+    // for ct_out in gpu_vec_out.iter(){
+    //     let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, ct_out);
+    //     let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((message_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
+    //     let dec: u64 =
+    //         signed_decomposer.closest_representable(dec.0) / delta;
+    //     assert_eq!(f(clear1), dec);
+    // }
+
     // testing key switching -------
 
     let (cks, sks) = gen_keys(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64);
@@ -197,6 +199,9 @@ fn example(){
         vec_out.extend(lwe_out.clone().into_container());
     }
     assert_eq!(vec_out, gpu_vec_out);
+
+
+    
 
  
 }
