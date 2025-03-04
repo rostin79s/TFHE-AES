@@ -1,31 +1,88 @@
-use tfhe::core_crypto::commons::ciphertext_modulus;
-use tfhe::core_crypto::gpu::entities::lwe_keyswitch_key::CudaLweKeyswitchKey;
-use tfhe::core_crypto::gpu::{
-    convert_lwe_keyswitch_key_async,
-    vec::CudaVec,
-    vec::GpuIndex,
-    CudaStreams,
-};
-use tfhe::integer::gpu::CudaServerKey;
-use tfhe::integer::ClientKey;
+use tfhe::shortint::PBSParameters;
 
-use tfhe::shortint::gen_keys;
-use tfhe::integer::gen_keys_radix;
-use tfhe::shortint::wopbs::*;
-use tfhe::shortint::parameters::parameters_wopbs_message_carry::LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
-use tfhe::shortint::parameters::V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
-use tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
-use tfhe::core_crypto::gpu::lwe_ciphertext_list::CudaLweCiphertextList;
-use tfhe::shortint::prelude::LweDimension;
-use tfhe::core_crypto::algorithms::lwe_keyswitch;
-use tfhe::core_crypto::prelude::*;
+use super::*;
 
-use tfhe::core_crypto::gpu::algorithms::cuda_programmable_bootstrap_lwe_ciphertext;
-use tfhe::core_crypto::gpu::lwe_bootstrap_key::CudaLweBootstrapKey;
-use tfhe::core_crypto::algorithms::lwe_bootstrap_key_generation::par_allocate_and_generate_new_lwe_bootstrap_key;
-use tfhe::core_crypto::gpu::cuda_multi_bit_programmable_bootstrap_lwe_ciphertext;
-use tfhe::core_crypto::gpu::glwe_ciphertext_list::CudaGlweCiphertextList;
-use tfhe::core_crypto::gpu::lwe_multi_bit_bootstrap_key::CudaLweMultiBitBootstrapKey;
+pub fn cpu_gen_lut
+(
+    pbs_params: &MultiBitPBSParameters,
+    function: fn(u64) -> u64,
+    padding: bool
+) -> GlweCiphertext<Vec<u64>>
+{
+    let plaintext_modulus = pbs_params.message_modulus.0 * pbs_params.carry_modulus.0;
+    let mut delta = (1_u64 << 63) / plaintext_modulus;
+    if !padding{
+        delta *= 2;
+    }
+    let polynomial_size = pbs_params.polynomial_size;
+    let glwe_dimension = pbs_params.glwe_dimension;
+    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+    let lut: GlweCiphertextOwned<u64> = generate_programmable_bootstrap_glwe_lut(
+        polynomial_size,
+        glwe_dimension.to_glwe_size(),
+        plaintext_modulus as usize,
+        ciphertext_modulus,
+        delta,
+        function,
+    );
+    return lut;
+}
+
+pub fn cpu_pbs(
+    pbs_params: &PBSParameters, 
+    big_lwe_sk: &LweSecretKey<Vec<u64>>,
+    fourier_bsk: &FourierLweBootstrapKey<ABox<[c64], ConstAlign<128>>>, 
+    ct: &LweCiphertext<Vec<u64>>, 
+    lut: &GlweCiphertext<Vec<u64>>
+) -> LweCiphertext<Vec<u64>>{
+
+    let ciphertext_modulus = pbs_params.ciphertext_modulus();
+    let mut ct_out = LweCiphertext::new(
+        0u64,
+        big_lwe_sk.lwe_dimension().to_lwe_size(),
+        ciphertext_modulus,
+    );  
+
+    println!("Computing PBS...");
+    let start = std::time::Instant::now();
+    programmable_bootstrap_lwe_ciphertext(
+        &ct,
+        &mut ct_out,
+        &lut,
+        &fourier_bsk,
+    );
+    println!("PBS took: {:?}", start.elapsed());
+    return ct_out
+}
+
+pub fn cpu_multipbs
+(
+    pbs_params: &MultiBitPBSParameters, 
+    big_lwe_sk: &LweSecretKey<Vec<u64>>,
+    fourier_multibsk: &FourierLweMultiBitBootstrapKey<ABox<[c64], ConstAlign<128>>>, 
+    ct: &LweCiphertext<Vec<u64>>, 
+    lut: &GlweCiphertext<Vec<u64>>,
+) -> LweCiphertext<Vec<u64>>
+{
+    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+    let mut ct_out = LweCiphertext::new(
+        0u64,
+        big_lwe_sk.lwe_dimension().to_lwe_size(),
+        ciphertext_modulus,
+    );  
+    println!("Computing multi bit PBS...");
+    let start = std::time::Instant::now();
+    multi_bit_programmable_bootstrap_lwe_ciphertext(
+        &ct,
+        &mut ct_out,
+        &lut,
+        &fourier_multibsk,
+        ThreadCount(4),
+        true
+    );
+    println!("multi bit PBS took: {:?}", start.elapsed());
+    return ct_out
+}
 
 pub fn gpu_pbs(streams: &CudaStreams, bsk: &LweBootstrapKey<Vec<u64>>, vec_cts: &Vec<LweCiphertext<Vec<u64>>>, vec_luts: &Vec<GlweCiphertext<Vec<u64>>> ) -> CudaLweCiphertextList<u64>{
     let cuda_bsk = CudaLweBootstrapKey::from_lwe_bootstrap_key(&bsk, &streams);

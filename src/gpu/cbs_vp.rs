@@ -93,7 +93,7 @@ where
 }
 
 
-pub fn generate_lut_vp(
+pub fn cpu_generate_lut_vp(
     wopbs_parameters: &WopbsParameters,
     vec_functions: &Vec<fn(u64) -> u64>,
 

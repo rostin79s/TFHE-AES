@@ -1,32 +1,4 @@
-use tfhe::{
-    shortint::{
-        prelude::{
-            LweDimension
-        }
-    },
-    core_crypto::{
-        prelude::{
-            LweKeyswitchKey,
-            LweCiphertext,
-            LweCiphertextList,
-            LweSize,
-            LweCiphertextCount,
-            keyswitch_lwe_ciphertext
-        },
-        gpu::{
-            CudaStreams,
-            vec::{
-                CudaVec,
-                GpuIndex
-            },
-            lwe_ciphertext_list::CudaLweCiphertextList,
-            lwe_keyswitch_key::CudaLweKeyswitchKey,
-            cuda_keyswitch_lwe_ciphertext,
-
-        },
-    }
-};
-
+use super::*;
 
 pub fn gpu_key_switch(streams: &CudaStreams, ksk: &LweKeyswitchKey<Vec<u64>>, vec_lwe_in: &Vec<LweCiphertext<Vec<u64>>>) -> CudaLweCiphertextList<u64>{
     let gpu_index = streams.gpu_indexes[0].0;
@@ -60,7 +32,24 @@ pub fn gpu_key_switch(streams: &CudaStreams, ksk: &LweKeyswitchKey<Vec<u64>>, ve
     return cuda_out_cts;
 }
 
-pub fn cpu_key_switch(ksk: &LweKeyswitchKey<Vec<u64>>, vec_lwe_in: &Vec<LweCiphertext<Vec<u64>>>) -> Vec<LweCiphertext<Vec<u64>>>{
+pub fn cpu_ksk
+(
+    ksk: &LweKeyswitchKey<Vec<u64>>,
+    ct: &LweCiphertext<Vec<u64>>,
+) -> LweCiphertext<Vec<u64>>
+{
+    let ciphertext_modulus = ct.ciphertext_modulus();
+
+    let mut ct_switched = LweCiphertext::new(
+        0u64,
+        ksk.output_lwe_size(),
+        ciphertext_modulus,
+    );
+    par_keyswitch_lwe_ciphertext(&ksk, &ct, &mut ct_switched);
+    return ct_switched
+}
+
+pub fn cpu_many_ksk(ksk: &LweKeyswitchKey<Vec<u64>>, vec_lwe_in: &Vec<LweCiphertext<Vec<u64>>>) -> Vec<LweCiphertext<Vec<u64>>>{
     let lwe_size = ksk.output_lwe_size();
     let ciphertext_modulus = vec_lwe_in[0].ciphertext_modulus();
     let mut vec_lwe_out = Vec::new();

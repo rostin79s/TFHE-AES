@@ -1,42 +1,98 @@
-use tfhe::core_crypto::gpu::entities::lwe_keyswitch_key::CudaLweKeyswitchKey;
-use tfhe::core_crypto::gpu::{
-    convert_lwe_keyswitch_key_async,
-    vec::CudaVec,
-    vec::GpuIndex,
-    CudaStreams,
-};
-use tfhe::integer::gpu::CudaServerKey;
-use tfhe::integer::ClientKey;
+use super::*;
 
-use tfhe::shortint::gen_keys;
-use tfhe::integer::gen_keys_radix;
-use tfhe::shortint::wopbs::*;
-use tfhe::shortint::parameters::parameters_wopbs_message_carry::LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
-use tfhe::shortint::parameters::V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
-use tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
-use tfhe::core_crypto::gpu::lwe_ciphertext_list::CudaLweCiphertextList;
-use tfhe::shortint::prelude::LweDimension;
-use tfhe::core_crypto::algorithms::lwe_keyswitch;
-use tfhe::core_crypto::prelude::*;
 
-use tfhe::core_crypto::gpu::algorithms::cuda_programmable_bootstrap_lwe_ciphertext;
-use tfhe::core_crypto::gpu::lwe_bootstrap_key::CudaLweBootstrapKey;
-use tfhe::core_crypto::algorithms::lwe_bootstrap_key_generation::par_allocate_and_generate_new_lwe_bootstrap_key;
-use tfhe::core_crypto::gpu::cuda_multi_bit_programmable_bootstrap_lwe_ciphertext;
-use tfhe::core_crypto::commons::math::random::BoundedDistribution;
-use tfhe::core_crypto::gpu::cuda_keyswitch_lwe_ciphertext;
-use tfhe::core_crypto::gpu::glwe_ciphertext_list::CudaGlweCiphertextList;
-use tfhe::core_crypto::prelude::{LweCiphertextCount, LweCiphertextList, LweSize};
-use tfhe::integer::backward_compatibility::ciphertext;
-use tfhe::integer::ciphertext::BaseRadixCiphertext;
-use tfhe::integer::{IntegerCiphertext, IntegerRadixCiphertext};
-use tfhe::shortint::parameters::{LEGACY_WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_2_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_2_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_3_KS_PBS_GAUSSIAN_2M64};
-use tfhe::shortint::Ciphertext;
-use tfhe::core_crypto::fft_impl::fft64::crypto::bootstrap::FourierLweBootstrapKeyView;
-use tfhe::core_crypto::fft_impl::fft64::math::fft::FftView;
+pub fn cpu_eb
+(
+    wopbs_parameters: &WopbsParameters,
+    wopbs_small_lwe_secret_key: &LweSecretKey<Vec<u64>>,
+    wopbs_big_lwe_secret_key: &LweSecretKey<Vec<u64>>,
+    wopbs_glwe_secret_key: &GlweSecretKey<Vec<u64>>,
+    ksk_wopbs_large_to_wopbs_small: &LweKeyswitchKey<Vec<u64>>,
+    wopbs_fourier_bsk: &FourierLweBootstrapKey<ABox<[c64], ConstAlign<128>>>,
+    ct: &LweCiphertext<Vec<u64>>,
+    buffers: &mut ComputationBuffers,
+    fft: &FftView<'_>,
 
-use dyn_stack::PodStack;
-use aligned_vec::CACHELINE_ALIGN;
+) -> LweCiphertextList<Vec<u64>>
+{
+
+    let ciphertext_modulus = ct.ciphertext_modulus();
+    let plaintext_modulus = wopbs_parameters.message_modulus.0 * wopbs_parameters.carry_modulus.0;
+    let nb_bit_to_extract = plaintext_modulus.ilog2() as usize;
+    let delta_log = DeltaLog(63 - nb_bit_to_extract);
+
+    let buffer_size_req = extract_bits_from_lwe_ciphertext_mem_optimized_requirement::<u64>(
+        wopbs_big_lwe_secret_key.lwe_dimension(),
+        wopbs_small_lwe_secret_key.lwe_dimension(),
+        wopbs_fourier_bsk.glwe_size(),
+        wopbs_fourier_bsk.polynomial_size(),
+        *fft
+    ).unwrap().unaligned_bytes_required();
+
+    buffers.resize(buffer_size_req);
+
+    let mut bit_extraction_output = LweCiphertextList::new(
+        0u64,
+        wopbs_small_lwe_secret_key.lwe_dimension().to_lwe_size(),
+        LweCiphertextCount(nb_bit_to_extract),
+        ciphertext_modulus,
+    );
+
+    let start = std::time::Instant::now();
+    extract_bits_from_lwe_ciphertext_mem_optimized(
+        &ct,
+        &mut bit_extraction_output,
+        &wopbs_fourier_bsk,
+        &ksk_wopbs_large_to_wopbs_small,
+        delta_log,
+        ExtractedBitsCount(nb_bit_to_extract),
+        *fft,
+        buffers.stack(),
+    );
+    // cpu_extract_bits(
+    //     bit_extraction_output.as_mut_view(),
+    //     ct.as_view(),
+    //     ksk_wopbs_large_to_wopbs_small.as_view(),
+    //     wopbs_fourier_bsk.as_view(),
+    //     delta_log,
+    //     ExtractedBitsCount(nb_bit_to_extract),
+    //     fft,
+    //     buffers.stack(),
+    // );
+
+    // gpu_extract_bits(
+    //     &streams,
+    //     &wopbs_bsk,
+    //     bit_extraction_output.as_mut_view(),
+    //     ct.as_view(),
+    //     ksk_wopbs_large_to_wopbs_small.as_view(),
+    //     wopbs_fourier_bsk.as_view(),
+    //     delta_log,
+    //     ExtractedBitsCount(nb_bit_to_extract),
+    //     fft,
+    //     buffers.stack(),
+    // );
+    println!("extract bits took: {:?}", start.elapsed());
+
+
+    // iterate through all next
+    
+    let bit_modulus: u64 = 2;
+    let delta = (1u64 << 63) / (bit_modulus) * 2;
+    let mut vec_bits = Vec::new();
+    bit_extraction_output.iter().all(|bit| {
+        vec_bits.push(bit.clone());
+        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_secret_key, &bit);
+        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2()) as usize), DecompositionLevelCount(1));
+        let dec: u64 =
+            signed_decomposer.closest_representable(dec.0) / delta;
+        println!("dec: {}", dec);
+        true
+    });
+    println!("bits extracted ...");
+
+    return bit_extraction_output;
+}
 
 pub fn cpu_extract_bits<Scalar: UnsignedTorus + CastInto<usize>>(
     mut lwe_list_out: LweCiphertextList<&'_ mut [Scalar]>,
