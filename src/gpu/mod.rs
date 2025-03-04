@@ -335,6 +335,7 @@ pub fn cpu_decrypt
     pbs_params: &FHEParameters,
     big_lwe_sk: &LweSecretKey<Vec<u64>>,
     ct: &LweCiphertext<Vec<u64>>,
+    padding: bool
 ) -> u64
 {
     let plaintext_modulus = match pbs_params {
@@ -342,9 +343,15 @@ pub fn cpu_decrypt
         FHEParameters::Wopbs(params) => params.message_modulus.0 * params.carry_modulus.0,
     };
 
-    let delta = (1_u64 << 63) / plaintext_modulus;
+    let mut delta = (1_u64 << 63) / plaintext_modulus;
+    let mut decomp = plaintext_modulus.ilog2() + 1;
+    if !padding {
+        delta *= 2;
+        decomp -= 1;
+    }
+    
     let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, &ct);
-    let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((plaintext_modulus.ilog2() + 1) as usize), DecompositionLevelCount(1));
+    let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
     let dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
 
     return dec;
@@ -364,4 +371,17 @@ pub fn cpu_veclwe_to_lwelist(
 
     let lwe_list_out = LweCiphertextList::from_container(cts_container, lwe_size, ciphertext_modulus);
     return lwe_list_out;
+}
+
+pub fn cpu_lwelist_to_veclwe
+(
+    lwe_list: &LweCiphertextList<Vec<u64>>,
+) -> Vec<LweCiphertext<Vec<u64>>>
+{
+    let mut vec_lwe_out = Vec::new();
+    for lwe_out in lwe_list.iter(){
+        let temp = lwe_out.into_container().to_vec();
+        vec_lwe_out.push(LweCiphertextOwned::from_container(temp, lwe_out.ciphertext_modulus()));
+    }
+    return vec_lwe_out;
 }
