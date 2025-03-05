@@ -120,7 +120,7 @@ fn example(){
 
     // circuit bootstrapping
 
-    let fft = Fft::new(bsk.polynomial_size());
+    let fft = Fft::new(wopbs_bsk.polynomial_size());
     let fft = fft.as_view();
     let mut buffers = ComputationBuffers::new();
 
@@ -130,7 +130,7 @@ fn example(){
     // let bits = cpu_eb(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &ksk_wopbs_large_to_wopbs_small, &wopbs_fourier_bsk, &wopbs_ct1_out, &mut buffers, &fft);
 
 
-    let f1: fn(u64) -> u64 = |x: u64| x-2;
+    let f1: fn(u64) -> u64 = |x: u64| x;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
     
