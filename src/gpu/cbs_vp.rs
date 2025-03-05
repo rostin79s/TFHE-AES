@@ -9,27 +9,19 @@ pub fn cpu_cbs_vp<
     bits: &LweCiphertextList<Vec<u64>>,
     lut: &PolynomialList<Vec<u64>>,
     wopbs_small_bsk: &FourierLweBootstrapKey<BskCont>,
-    ksk_wopbs_large_to_wopbs_small: &LweKeyswitchKey<Vec<u64>>,
     wopbs_large_lwe_secret_key: &LweSecretKey<Vec<u64>>,
     cbs_pfpksk: &LwePrivateFunctionalPackingKeyswitchKeyList<Vec<u64>>,
     fft: &FftView<'_>,
     buffers: &mut ComputationBuffers,
-) -> Vec<LweCiphertext<Vec<u64>>>
+) -> LweCiphertextList<Vec<u64>>
 where 
     BskCont: Container<Element = c64>,
 {
     let ciphertext_modulus = bits.ciphertext_modulus();
-    let poly_size = wopbs_parameters.polynomial_size.0;
-    let lut_size = lut.polynomial_count().0;
-    println!("lut_size: {}", lut_size);
-    let output_ciphertexts_count = lut_size;
+    let poly_size = wopbs_parameters.polynomial_size;
+    let output_ciphertexts_count = lut.polynomial_count().0;
     let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_ciphertexts_count);
     let nb_bit_to_extract = bits.lwe_ciphertext_count().0;
-    println!("nb_bit_to_extract: {}", nb_bit_to_extract);
-    let wopbs_polynomial_size = PolynomialSize(poly_size);
-    println!("wopbs_polynomial_size: {}", wopbs_polynomial_size.0);
-    let glwe_n = wopbs_parameters.glwe_dimension.0;
-    println!("glwe_n: {}", glwe_n);
 
     let mut output_cbs_vp = LweCiphertextList::new(
         0u64,
@@ -40,7 +32,7 @@ where
 
     println!("Computing circuit bootstrap...");
     println!("lwe dimension: {}", wopbs_parameters.lwe_dimension.0);
-    let mut buffer_size_req = 
+    let buffer_size_req = 
     circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized_requirement::<
         u64,
     >(
@@ -50,15 +42,13 @@ where
         PolynomialCount(output_ciphertexts_count),
         wopbs_small_bsk.output_lwe_dimension().to_lwe_size(),
         wopbs_small_bsk.glwe_size(),
-        wopbs_polynomial_size,
+        poly_size,
         wopbs_parameters.cbs_level,
         *fft,
     )
     .unwrap()
     .unaligned_bytes_required();
 
-    buffer_size_req *= 2;
-    println!("buffer size req: {}", buffer_size_req);
 
     buffers.resize(buffer_size_req);
 
@@ -75,29 +65,8 @@ where
     buffers.stack(),
     );
     println!("circuit_bootstrap_boolean_vertical_packing took: {:?}", start.elapsed());
-
-    let size = output_cbs_vp.lwe_ciphertext_count().0;
-
-    let bit_modulus: u64 = 2;
-    let delta = (1u64 << 63) / (bit_modulus) * 2;
-    let mut vec_out_bits = Vec::new();
-    let out_count = output_cbs_vp.lwe_ciphertext_count().0;
-    let out_n = output_cbs_vp.lwe_size().0;
-    println!("out_n: {}", out_n);
-    println!("out_count: {}", out_count);
     
-    output_cbs_vp.iter().all(|bit| {
-        
-        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &bit);
-        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2()) as usize), DecompositionLevelCount(1));
-        let dec: u64 =
-            signed_decomposer.closest_representable(dec.0) / delta;
-        let mut switched_bit = LweCiphertext::new(0, ksk_wopbs_large_to_wopbs_small.output_lwe_size(), ciphertext_modulus);
-        keyswitch_lwe_ciphertext(&ksk_wopbs_large_to_wopbs_small, &bit, &mut switched_bit);
-        vec_out_bits.push(switched_bit.clone());
-        true
-    });
-    return vec_out_bits;
+    return output_cbs_vp;
 }
 
 

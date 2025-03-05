@@ -132,32 +132,26 @@ fn example(){
 
     let f1: fn(u64) -> u64 = |x: u64| x + 1;
     let f2 = |x: u64| x + 3;
-    let f3 = |x: u64| x + 1;
-    let f4 = |x: u64| x + 2;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
     vec_functions.push(f2);
-    vec_functions.push(f3);
-    vec_functions.push(f4);
-    for _ in 0..5{
-        vec_functions.push(f1);
-    }
     let output_count = wopbs_bits.lwe_ciphertext_count().0;
     let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions, output_count);
     
 
-    let vec_out_bits = cpu_cbs_vp(
+    let out_bits_list = cpu_cbs_vp(
         &wopbs_params,
         &wopbs_bits,
         &lut,
         &wopbs_fourier_bsk,
-        &ksk_wopbs_large_to_wopbs_small,
         &wopbs_big_lwe_secret_key,
         &cbs_pfpksk,
         &fft,
         &mut buffers,
     );
 
+    let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
+    let vec_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_out_bits);
 
     let count = wopbs_bits.lwe_ciphertext_count().0;
     let mut index = count - 1;
@@ -184,19 +178,21 @@ fn example(){
         &new_bits,
         &lut,
         &wopbs_fourier_bsk,
-        &ksk_wopbs_large_to_wopbs_small,
         &wopbs_big_lwe_secret_key,
         &cbs_pfpksk,
         &fft,
         &mut buffers,
     );
 
+    let vec_new_out_bits = cpu_lwelist_to_veclwe(&new_out_bits);
+    let vec_new_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_new_out_bits);
+
     
     let count = wopbs_bits.lwe_ciphertext_count().0;
     let mut index = count - 1;
     let mut integer = 0;
     let mut j = 0;
-    for bit_out in new_out_bits.iter(){
+    for bit_out in vec_new_out_bits.iter(){
         let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &bit_out, false);
         integer += dec << index;
         if index == 0{
@@ -209,6 +205,12 @@ fn example(){
         index -= 1;
         
     }
+
+    let new_bits_list = cpu_veclwe_to_lwelist(&vec_new_out_bits);
+
+    
+
+    
 
 
     // let new_bits = cpu_veclwe_to_lwelist(&vec_out_bits);
