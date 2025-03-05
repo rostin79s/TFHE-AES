@@ -68,7 +68,7 @@ pub enum FHEParameters{
  // 1 :   2, 10,  678,    2, 15,     4,  3,     1, 11,     2, 16,    136, 6.4e-20
  pub const PARAM_OPT: WopbsParameters =
  WopbsParameters {
-     lwe_dimension: LweDimension(678),
+     lwe_dimension: LweDimension(656),
      glwe_dimension: GlweDimension(2),
      polynomial_size: PolynomialSize(1024),
      lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -77,8 +77,8 @@ pub enum FHEParameters{
      glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
          3.162026630747649e-16,
      )),
-     pbs_base_log: DecompositionBaseLog(15),
-     pbs_level: DecompositionLevelCount(2),
+     pbs_base_log: DecompositionBaseLog(12),
+     pbs_level: DecompositionLevelCount(3),
      ks_level: DecompositionLevelCount(4),
      ks_base_log: DecompositionBaseLog(3),
      pfks_level: DecompositionLevelCount(2),
@@ -87,7 +87,7 @@ pub enum FHEParameters{
          3.162026630747649e-16,
      )),
      cbs_level: DecompositionLevelCount(1),
-     cbs_base_log: DecompositionBaseLog(11),
+     cbs_base_log: DecompositionBaseLog(13),
      message_modulus: MessageModulus(2),
      carry_modulus: CarryModulus(1),
      ciphertext_modulus: CiphertextModulus::new_native(),

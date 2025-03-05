@@ -50,7 +50,7 @@ where
     .unaligned_bytes_required();
 
 
-    buffers.resize(buffer_size_req);
+    buffers.resize(buffer_size_req * 2);
 
     let start = std::time::Instant::now();
     circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized(
@@ -74,6 +74,7 @@ pub fn cpu_generate_lut_vp(
     wopbs_params: &WopbsParameters,
     vec_functions: &Vec<fn(u64) -> u64>,
     output_count: usize,
+    padding: bool
 
 ) -> PolynomialList<Vec<u64>>
 {
@@ -82,7 +83,7 @@ pub fn cpu_generate_lut_vp(
     for function in vec_functions{
         let mut integer_lut = gen_lut_vp(
             wopbs_params.message_modulus.0 as usize, 
-            wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, function);
+            wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, function, padding);
     
         let sag = integer_lut.as_mut().lut();
         let asb = sag.as_polynomial().into_container().to_vec();
@@ -102,7 +103,7 @@ use tfhe::integer::wopbs::{
 
 // This is the function wopbs_key.generate_radix_lut_without_padding(...), except the last part of the function had
 // a bug that assumed there is carry, and I fixed it for my use case and use this function instead.
-pub fn gen_lut_vp<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_block: usize, f: F) -> IntegerWopbsLUT 
+pub fn gen_lut_vp<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_block: usize, f: F, padding: bool) -> IntegerWopbsLUT 
     where
         F: Fn(u64) -> u64
     {
@@ -110,7 +111,11 @@ pub fn gen_lut_vp<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_
             f64::log2((message_mod) as f64) as u64;
         let log_carry_modulus = f64::log2((carry_mod) as f64) as u64;
         let log_basis = log_message_modulus + log_carry_modulus;
-        let delta = 64 - log_basis;
+        let delta = if padding {
+            64 - log_basis - 1
+        } else {
+            64 - log_basis
+        };
         let poly_size = poly_size;
         let mut lut_size = 1 << (nb_block * log_basis as usize);
         if lut_size < poly_size {

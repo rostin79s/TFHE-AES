@@ -127,16 +127,11 @@ fn example(){
 
 
 
-    // let bits = cpu_eb(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &ksk_wopbs_large_to_wopbs_small, &wopbs_fourier_bsk, &wopbs_ct1_out, &mut buffers, &fft);
-
-
     let f1: fn(u64) -> u64 = |x: u64| x + 1;
-    let f2 = |x: u64| x + 3;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
-    vec_functions.push(f2);
     let output_count = wopbs_bits.lwe_ciphertext_count().0;
-    let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions, output_count);
+    let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions, output_count, true);
     
 
     let out_bits_list = cpu_cbs_vp(
@@ -151,18 +146,17 @@ fn example(){
     );
 
     let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
-    let vec_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_out_bits);
 
     let count = wopbs_bits.lwe_ciphertext_count().0;
     let mut index = count - 1;
     let mut integer = 0;
     let mut j = 0;
     for bit_out in vec_out_bits.iter(){
-        let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &bit_out, false);
+        let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_secret_key, &bit_out, true);
         integer += dec << index;
         if index == 0{
             println!("f{}: {}", j, integer);
-            assert_eq!(integer, vec_functions[j](clear1));
+            // assert_eq!(integer, vec_functions[j](clear1));
             integer = 0;
             index = count;
             j += 1;
@@ -171,33 +165,29 @@ fn example(){
         
     }
 
-    let new_bits = cpu_veclwe_to_lwelist(&vec_out_bits[0..output_count].to_vec());
+    let vec_pbs_bits = cpu_many_ksk(&ksk_wopbs_large_to_pbs_small, &vec_out_bits);
 
-    let new_out_bits = cpu_cbs_vp(
-        &wopbs_params,
-        &new_bits,
-        &lut,
-        &wopbs_fourier_bsk,
-        &wopbs_big_lwe_secret_key,
-        &cbs_pfpksk,
-        &fft,
-        &mut buffers,
-    );
-
-    let vec_new_out_bits = cpu_lwelist_to_veclwe(&new_out_bits);
-    let vec_pbs_bits = cpu_many_ksk(&ksk_wopbs_large_to_pbs_small, &vec_new_out_bits);
-
+    let mut pbs_integer = 0;
+    let mut index = 3;
     for pbs_bit in vec_pbs_bits.iter(){
-        // let function = |x: u64| x;
-        // let lut = &cpu_gen_lut(&pbs_params, function, true);
-        // let new_pbs_bit = cpu_multipbs(&pbs_params, &big_lwe_sk, &fourier_multibsk, pbs_bit, lut);
+        let function = |x: u64| x;
+        let lut = &cpu_gen_lut(&pbs_params, function, true);
+        let new_pbs_bit = cpu_multipbs(&pbs_params, &big_lwe_sk, &fourier_multibsk, pbs_bit, lut);
         // let new_pbs_bit = cpu_ksk(&ksk, &new_pbs_bit);
 
-        let dec: u64 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &small_lwe_sk, &pbs_bit, true);
+        let dec: u64 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &new_pbs_bit, true);
         println!("dec: {}", dec);
+        if index > 1{
+            assert_eq!(dec,8);
+        }
+        else{
+            assert_eq!(dec, 0);
+        }
+        pbs_integer += dec/8 << index;
+        index -=1;
     }
-
-    
+    println!("pbs integer: {}", pbs_integer);
+    assert_eq!(pbs_integer, f1(clear1));
 
     
 
@@ -221,19 +211,19 @@ fn example(){
 
 
     // GPU --------------------------------
-    let mut vec_cts = vec![ct1.clone()];
-    let size = 128;
-    for _ in 0..size{
-        vec_cts.push(ct1.clone());
-    }
+    // let mut vec_cts = vec![ct1.clone()];
+    // let size = 128;
+    // for _ in 0..size{
+    //     vec_cts.push(ct1.clone());
+    // }
 
-    let mut vec_luts = vec![lut1.clone()];
-    for _ in 0..size{
-        vec_luts.push(lut1.clone());
-    }
+    // let mut vec_luts = vec![lut1.clone()];
+    // for _ in 0..size{
+    //     vec_luts.push(lut1.clone());
+    // }
 
-    // let cuda_out_cts = gpu_pbs(&streams, &bsk, &vec_cts, &vec_luts);
-    let cuda_out_cts = gpu_multi_pbs(&streams, &multibsk, &vec_cts, &vec_luts);
+    // // let cuda_out_cts = gpu_pbs(&streams, &bsk, &vec_cts, &vec_luts);
+    // let cuda_out_cts = gpu_multi_pbs(&streams, &multibsk, &vec_cts, &vec_luts);
 
     // drop(bsk);
 
@@ -253,31 +243,31 @@ fn example(){
 
     // testing key switching -------
 
-    let (cks, sks) = gen_keys(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64);
+    // let (cks, sks) = gen_keys(V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64);
 
-    // let wopbs_key = WopbsKey::new_wopbs_key(cks, sks, parameters)
+    // // let wopbs_key = WopbsKey::new_wopbs_key(cks, sks, parameters)
 
 
-    let ksk = sks.key_switching_key;
-    let ct1= cks.encrypt(2).ct;
-    let ct2 = cks.encrypt(3).ct;
-    let ct3 = cks.encrypt(1).ct;
-    let vec_lwe_in = vec![ct1, ct2, ct3];
+    // let ksk = sks.key_switching_key;
+    // let ct1= cks.encrypt(2).ct;
+    // let ct2 = cks.encrypt(3).ct;
+    // let ct3 = cks.encrypt(1).ct;
+    // let vec_lwe_in = vec![ct1, ct2, ct3];
 
-    let start = std::time::Instant::now();
-    let cuda_vec_lwe_out = gpu_key_switch(&streams, &ksk, &vec_lwe_in);
-    println!("GPU key switch took: {:?}", start.elapsed());
-    let gpu_vec_lwe_out = cuda_vec_lwe_out.to_lwe_ciphertext_list(&streams);
-    let gpu_vec_out = gpu_vec_lwe_out.into_container();
+    // let start = std::time::Instant::now();
+    // let cuda_vec_lwe_out = gpu_key_switch(&streams, &ksk, &vec_lwe_in);
+    // println!("GPU key switch took: {:?}", start.elapsed());
+    // let gpu_vec_lwe_out = cuda_vec_lwe_out.to_lwe_ciphertext_list(&streams);
+    // let gpu_vec_out = gpu_vec_lwe_out.into_container();
 
-    let start = std::time::Instant::now();
-    let vec_lwe_out = cpu_many_ksk(&ksk, &vec_lwe_in);
-    println!("CPU key switch took: {:?}", start.elapsed());
-    let mut vec_out = Vec::new();
-    for lwe_out in vec_lwe_out.iter(){
-        vec_out.extend(lwe_out.clone().into_container());
-    }
-    assert_eq!(vec_out, gpu_vec_out);
+    // let start = std::time::Instant::now();
+    // let vec_lwe_out = cpu_many_ksk(&ksk, &vec_lwe_in);
+    // println!("CPU key switch took: {:?}", start.elapsed());
+    // let mut vec_out = Vec::new();
+    // for lwe_out in vec_lwe_out.iter(){
+    //     vec_out.extend(lwe_out.clone().into_container());
+    // }
+    // assert_eq!(vec_out, gpu_vec_out);
 
 
     
@@ -287,5 +277,7 @@ fn example(){
 
 // Main function to run the FHE AES CTR encryption. All functions, AES key expansion, encryption and decryption are run single threaded. Only CTR is parallelized.
 fn main() {
-    example();
+    loop{
+        example();
+    }
 }

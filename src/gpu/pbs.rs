@@ -43,7 +43,6 @@ pub fn cpu_pbs(
         ciphertext_modulus,
     );  
 
-    println!("Computing PBS...");
     let start = std::time::Instant::now();
     programmable_bootstrap_lwe_ciphertext(
         &ct,
@@ -51,7 +50,6 @@ pub fn cpu_pbs(
         &lut,
         &fourier_bsk,
     );
-    println!("PBS took: {:?}", start.elapsed());
     return ct_out
 }
 
@@ -70,7 +68,6 @@ pub fn cpu_multipbs
         big_lwe_sk.lwe_dimension().to_lwe_size(),
         ciphertext_modulus,
     );  
-    println!("Computing multi bit PBS...");
     let start = std::time::Instant::now();
     multi_bit_programmable_bootstrap_lwe_ciphertext(
         &ct,
@@ -80,7 +77,6 @@ pub fn cpu_multipbs
         ThreadCount(4),
         true
     );
-    println!("multi bit PBS took: {:?}", start.elapsed());
     return ct_out
 }
 
