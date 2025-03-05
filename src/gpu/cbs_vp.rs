@@ -1,6 +1,7 @@
 
 use tfhe::shortint::WopbsParameters;
 
+use crate::gen_lut;
 use super::*;
 
 pub fn cpu_cbs_vp<
@@ -105,35 +106,19 @@ where
 
 
 pub fn cpu_generate_lut_vp(
-    wopbs_parameters: &WopbsParameters,
+    wopbs_params: &WopbsParameters,
     vec_functions: &Vec<fn(u64) -> u64>,
+    output_count: usize,
 
 ) -> PolynomialList<Vec<u64>>
 {
-    let plaintext_modulus = wopbs_parameters.message_modulus.0 * wopbs_parameters.carry_modulus.0;
-    let message_bits: usize = plaintext_modulus.ilog2() as usize;
-    println!("message_bits: {}", message_bits);
-    let delta_log_lut = DeltaLog(64 - message_bits);
-    let poly_size = wopbs_parameters.polynomial_size;
 
-    let f1: Box<dyn Fn(u64) -> u64> = Box::new(|x: u64| (x >> 3) << (message_bits - 1));
-    let f2: Box<dyn Fn(u64) -> u64> = Box::new(|x: u64| ((x >> 2) & 1) << (message_bits - 1));
-    let f3: Box<dyn Fn(u64) -> u64> = Box::new(|x: u64| ((x >> 1) & 1) << (message_bits - 1));
-    let f4: Box<dyn Fn(u64) -> u64> = Box::new(|x: u64| (x & 1) << (message_bits - 1));
-    let vec_subfunctions = vec![f1, f2, f3, f4];
+    let mut integer_lut = gen_lut(
+        wopbs_params.message_modulus.0 as usize, 
+        wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, vec_functions[0]);
 
-
-    let output_ciphertexts_count = vec_functions.len() * 4;
-
-    let lut_size = poly_size.0;
-    let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
-    for i in  0..output_ciphertexts_count{
-        for j in 0..lut_size {
-            let elem = vec_functions[i/4](j as u64 % (1 << message_bits)) << delta_log_lut.0;
-            lut.push(elem);
-        }
-    }
-    let lut_as_polynomial_list = PolynomialList::from_container(lut, poly_size);
-    return lut_as_polynomial_list;
-
+    let sag = integer_lut.as_mut().lut();
+    let asb = sag.as_polynomial().into_container().to_vec();
+    let lut = PolynomialList::from_container(asb, wopbs_params.polynomial_size);
+    return lut;
 }

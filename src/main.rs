@@ -133,45 +133,14 @@ fn example(){
     let f1: fn(u64) -> u64 = |x: u64| x;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
-    
-
-    // let plaintext_modulus = wopbs_params.message_modulus.0 * wopbs_params.carry_modulus.0;
-    // let message_bits: usize = plaintext_modulus.ilog2() as usize;
-    // println!("message_bits: {}", message_bits);
-    // let delta_log_lut = 64 - message_bits;
-    // let poly_size = wopbs_params.polynomial_size;
-
-    // let lut_size = poly_size.0 ;
-    // println!("lut_size: {}", lut_size);
-    // let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
-
-    // for _ in 0..2{
-    //     for j in 0..lut_size {
-    //         let elem = f1(j as u64 % (1 << message_bits)) << delta_log_lut;
-    //         lut.push(elem);
-    //     }
-    // }   
-    // use tfhe::core_crypto::prelude::PolynomialList;
-    // let lut = PolynomialList::from_container(lut, poly_size);
-
-    // let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions);
-
-    use tfhe::core_crypto::prelude::PolynomialList;
     let output_count = wopbs_bits.lwe_ciphertext_count().0;
-
-    let mut integer_lut = gen_lut(
-        wopbs_params.message_modulus.0 as usize, 
-        wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, f1);
-
-    let sag = integer_lut.as_mut().lut();
-    let asb = sag.as_polynomial().into_container().to_vec();
-    let new_lut = PolynomialList::from_container(asb, wopbs_params.polynomial_size);
+    let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions, output_count);
     
 
     let vec_out_bits = cpu_cbs_vp(
         &wopbs_params,
         &wopbs_bits,
-        &new_lut,
+        &lut,
         &wopbs_fourier_bsk,
         &ksk_wopbs_large_to_wopbs_small,
         &wopbs_big_lwe_secret_key,
