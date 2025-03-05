@@ -1,7 +1,4 @@
-
 use tfhe::shortint::WopbsParameters;
-
-use crate::gen_lut;
 use super::*;
 
 pub fn cpu_cbs_vp<
@@ -88,6 +85,7 @@ where
     let out_n = output_cbs_vp.lwe_size().0;
     println!("out_n: {}", out_n);
     println!("out_count: {}", out_count);
+    
     output_cbs_vp.iter().all(|bit| {
         
         let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &bit);
@@ -95,7 +93,6 @@ where
         let dec: u64 =
             signed_decomposer.closest_representable(dec.0) / delta;
         println!("dec: {}", dec);
-        
         let mut switched_bit = LweCiphertext::new(0, ksk_wopbs_large_to_wopbs_small.output_lwe_size(), ciphertext_modulus);
         keyswitch_lwe_ciphertext(&ksk_wopbs_large_to_wopbs_small, &bit, &mut switched_bit);
         vec_out_bits.push(switched_bit.clone());
@@ -113,7 +110,8 @@ pub fn cpu_generate_lut_vp(
 ) -> PolynomialList<Vec<u64>>
 {
 
-    let mut integer_lut = gen_lut(
+
+    let mut integer_lut = gen_lut_vp(
         wopbs_params.message_modulus.0 as usize, 
         wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, vec_functions[0]);
 
@@ -122,3 +120,47 @@ pub fn cpu_generate_lut_vp(
     let lut = PolynomialList::from_container(asb, wopbs_params.polynomial_size);
     return lut;
 }
+
+
+use tfhe::integer::wopbs::{
+    IntegerWopbsLUT,
+    PlaintextCount, 
+    CiphertextCount
+};
+
+// This is the function wopbs_key.generate_radix_lut_without_padding(...), except the last part of the function had
+// a bug that assumed there is carry, and I fixed it for my use case and use this function instead.
+pub fn gen_lut_vp<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_block: usize, f: F) -> IntegerWopbsLUT 
+    where
+        F: Fn(u64) -> u64
+    {
+        let log_message_modulus =
+            f64::log2((message_mod) as f64) as u64;
+        let log_carry_modulus = f64::log2((carry_mod) as f64) as u64;
+        let log_basis = log_message_modulus + log_carry_modulus;
+        let delta = 64 - log_basis;
+        let poly_size = poly_size;
+        let mut lut_size = 1 << (nb_block * log_basis as usize);
+        if lut_size < poly_size {
+            lut_size = poly_size;
+        }
+        let mut lut = IntegerWopbsLUT::new(PlaintextCount(lut_size), CiphertextCount(nb_block));
+
+        for index in 0..lut_size {
+            let mut value = 0;
+            let mut tmp_index = index;
+            for i in 0..nb_block as u64 {
+                let tmp = tmp_index % (1 << log_basis);
+                tmp_index >>= log_basis;
+                value += tmp << (log_message_modulus * i);
+            }
+
+            for block_index in 0..nb_block {
+                let rev_block_index = nb_block - 1 - block_index;
+                let masked_value = (f(value as u64) >> (log_message_modulus * rev_block_index as u64))
+                    % (1 << log_message_modulus); 
+                lut[block_index][index] = masked_value << delta; 
+            }
+        }
+        lut
+    }

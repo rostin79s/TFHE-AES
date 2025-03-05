@@ -131,8 +131,12 @@ fn example(){
 
 
     let f1: fn(u64) -> u64 = |x: u64| x;
+    let f2 = |x: u64| x + 3;
+    let f3 = |x: u64| x + 1;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
+    vec_functions.push(f2);
+    vec_functions.push(f3);
     let output_count = wopbs_bits.lwe_ciphertext_count().0;
     let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions, output_count);
     
@@ -148,6 +152,25 @@ fn example(){
         &fft,
         &mut buffers,
     );
+
+
+    let count = wopbs_bits.lwe_ciphertext_count().0;
+    let mut index = count - 1;
+    let mut integer = 0;
+    for bit_out in vec_out_bits.iter(){
+        let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &bit_out, false);
+        integer += dec << index;
+        if index == 0{
+            println!("f{}: {}", index/count, integer);
+            
+            integer = 0;
+            index = count;
+        }
+        index -= 1;
+        
+    }
+
+
 
     // let new_bits = cpu_veclwe_to_lwelist(&vec_out_bits);
 

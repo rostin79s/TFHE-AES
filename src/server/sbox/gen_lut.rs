@@ -32,9 +32,9 @@ pub fn gen_lut<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_blo
             }
 
             for block_index in 0..nb_block {
-                let rev_block_index = nb_block - 1 - block_index;
-                let masked_value = (f(value as u64) >> (log_message_modulus * rev_block_index as u64))
+                let masked_value = (f(value as u64) >> (log_message_modulus * block_index as u64))
                     % (1 << log_message_modulus); 
+            
                 lut[block_index][index] = masked_value << delta; 
             }
         }
