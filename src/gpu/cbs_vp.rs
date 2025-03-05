@@ -92,7 +92,6 @@ where
         let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog((bit_modulus.ilog2()) as usize), DecompositionLevelCount(1));
         let dec: u64 =
             signed_decomposer.closest_representable(dec.0) / delta;
-        println!("dec: {}", dec);
         let mut switched_bit = LweCiphertext::new(0, ksk_wopbs_large_to_wopbs_small.output_lwe_size(), ciphertext_modulus);
         keyswitch_lwe_ciphertext(&ksk_wopbs_large_to_wopbs_small, &bit, &mut switched_bit);
         vec_out_bits.push(switched_bit.clone());
@@ -110,14 +109,18 @@ pub fn cpu_generate_lut_vp(
 ) -> PolynomialList<Vec<u64>>
 {
 
+    let mut containers = Vec::new();
+    for function in vec_functions{
+        let mut integer_lut = gen_lut_vp(
+            wopbs_params.message_modulus.0 as usize, 
+            wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, function);
+    
+        let sag = integer_lut.as_mut().lut();
+        let asb = sag.as_polynomial().into_container().to_vec();
+        containers.extend(asb);
+    }
 
-    let mut integer_lut = gen_lut_vp(
-        wopbs_params.message_modulus.0 as usize, 
-        wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, vec_functions[0]);
-
-    let sag = integer_lut.as_mut().lut();
-    let asb = sag.as_polynomial().into_container().to_vec();
-    let lut = PolynomialList::from_container(asb, wopbs_params.polynomial_size);
+    let lut = PolynomialList::from_container(containers, wopbs_params.polynomial_size);
     return lut;
 }
 
