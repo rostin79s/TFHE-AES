@@ -1,4 +1,7 @@
 mod gpu;
+mod server;
+pub mod tables;
+use server::sbox::gen_lut::gen_lut;
 
 use gpu::{
     cbs_vp::*, cpu_decrypt, cpu_encrypt, cpu_gen_bsk, cpu_gen_ksk, cpu_gen_multibsk, cpu_gen_wopbs_keys, cpu_lwelist_to_veclwe, cpu_params, cpu_seed, cpu_veclwe_to_lwelist, extract_bits::*, key_switch::*, pbs::*, FHEParameters
@@ -104,18 +107,22 @@ fn example(){
     let vec_pbs_bits = cpu_lwelist_to_veclwe(&pbs_bits);
     let n = vec_pbs_bits[0].lwe_size().0;
     println!("n: {}", n);
+    let mut vec_wopbs_bits = Vec::new();
     for pbs_bit in vec_pbs_bits.iter(){
         let pbs_bit_switched = cpu_ksk(&ksk_pbs_small_to_wopbs_small, &pbs_bit);
         let wopbs_dec = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &pbs_bit_switched, false);
         println!("wopbs dec: {}", wopbs_dec);
+        vec_wopbs_bits.push(pbs_bit_switched);
     }
 
+    let wopbs_bits = cpu_veclwe_to_lwelist(&vec_wopbs_bits);
 
-    // extract bits
 
-    // let fft = Fft::new(bsk.polynomial_size());
-    // let fft = fft.as_view();
-    // let mut buffers = ComputationBuffers::new();
+    // circuit bootstrapping
+
+    let fft = Fft::new(bsk.polynomial_size());
+    let fft = fft.as_view();
+    let mut buffers = ComputationBuffers::new();
 
 
 
@@ -123,24 +130,55 @@ fn example(){
     // let bits = cpu_eb(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_secret_key, &wopbs_big_lwe_secret_key, &ksk_wopbs_large_to_wopbs_small, &wopbs_fourier_bsk, &wopbs_ct1_out, &mut buffers, &fft);
 
 
-    // let f1: fn(u64) -> u64 = |x: u64| x + 1;
-    // let mut vec_functions = Vec::new();
-    // vec_functions.push(f1);
+    let f1: fn(u64) -> u64 = |x: u64| x-2;
+    let mut vec_functions = Vec::new();
+    vec_functions.push(f1);
+    
 
+    // let plaintext_modulus = wopbs_params.message_modulus.0 * wopbs_params.carry_modulus.0;
+    // let message_bits: usize = plaintext_modulus.ilog2() as usize;
+    // println!("message_bits: {}", message_bits);
+    // let delta_log_lut = 64 - message_bits;
+    // let poly_size = wopbs_params.polynomial_size;
+
+    // let lut_size = poly_size.0 ;
+    // println!("lut_size: {}", lut_size);
+    // let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
+
+    // for _ in 0..2{
+    //     for j in 0..lut_size {
+    //         let elem = f1(j as u64 % (1 << message_bits)) << delta_log_lut;
+    //         lut.push(elem);
+    //     }
+    // }   
+    // use tfhe::core_crypto::prelude::PolynomialList;
+    // let lut = PolynomialList::from_container(lut, poly_size);
 
     // let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions);
 
-    // let vec_out_bits = cpu_cbs_vp(
-    //     &wopbs_params,
-    //     &bits,
-    //     &lut,
-    //     &wopbs_fourier_bsk,
-    //     &ksk_wopbs_large_to_wopbs_small,
-    //     &wopbs_big_lwe_secret_key,
-    //     &cbs_pfpksk,
-    //     &fft,
-    //     &mut buffers,
-    // );
+    use tfhe::core_crypto::prelude::PolynomialList;
+    let output_count = wopbs_bits.lwe_ciphertext_count().0;
+
+    let mut integer_lut = gen_lut(
+        wopbs_params.message_modulus.0 as usize, 
+        wopbs_params.carry_modulus.0 as usize, wopbs_params.polynomial_size.0, output_count, f1);
+
+    let sag = integer_lut.as_mut().lut();
+    let asb = sag.as_polynomial().into_container().to_vec();
+    let new_lut = PolynomialList::from_container(asb, wopbs_params.polynomial_size);
+    
+
+    let vec_out_bits = cpu_cbs_vp(
+        &wopbs_params,
+        &wopbs_bits,
+        &new_lut,
+        &wopbs_fourier_bsk,
+        &ksk_wopbs_large_to_wopbs_small,
+        &wopbs_big_lwe_secret_key,
+        &cbs_pfpksk,
+        &fft,
+        &mut buffers,
+    );
 
     // let new_bits = cpu_veclwe_to_lwelist(&vec_out_bits);
 

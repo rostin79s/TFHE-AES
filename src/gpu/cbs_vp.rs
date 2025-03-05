@@ -23,10 +23,15 @@ where
     let ciphertext_modulus = bits.ciphertext_modulus();
     let poly_size = wopbs_parameters.polynomial_size.0;
     let lut_size = lut.polynomial_count().0;
+    println!("lut_size: {}", lut_size);
     let output_ciphertexts_count = lut_size;
     let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_ciphertexts_count);
-    let nb_bit_to_extract = ((wopbs_parameters.message_modulus.0 * wopbs_parameters.carry_modulus.0)) as usize;
+    let nb_bit_to_extract = bits.lwe_ciphertext_count().0;
+    println!("nb_bit_to_extract: {}", nb_bit_to_extract);
     let wopbs_polynomial_size = PolynomialSize(poly_size);
+    println!("wopbs_polynomial_size: {}", wopbs_polynomial_size.0);
+    let glwe_n = wopbs_parameters.glwe_dimension.0;
+    println!("glwe_n: {}", glwe_n);
 
     let mut output_cbs_vp = LweCiphertextList::new(
         0u64,
@@ -36,7 +41,8 @@ where
     );
 
     println!("Computing circuit bootstrap...");
-    let buffer_size_req = 
+    println!("lwe dimension: {}", wopbs_parameters.lwe_dimension.0);
+    let mut buffer_size_req = 
     circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized_requirement::<
         u64,
     >(
@@ -53,6 +59,7 @@ where
     .unwrap()
     .unaligned_bytes_required();
 
+    buffer_size_req *= 2;
     println!("buffer size req: {}", buffer_size_req);
 
     buffers.resize(buffer_size_req);
@@ -76,6 +83,10 @@ where
     let bit_modulus: u64 = 2;
     let delta = (1u64 << 63) / (bit_modulus) * 2;
     let mut vec_out_bits = Vec::new();
+    let out_count = output_cbs_vp.lwe_ciphertext_count().0;
+    let out_n = output_cbs_vp.lwe_size().0;
+    println!("out_n: {}", out_n);
+    println!("out_count: {}", out_count);
     output_cbs_vp.iter().all(|bit| {
         
         let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_large_lwe_secret_key, &bit);
@@ -118,7 +129,7 @@ pub fn cpu_generate_lut_vp(
     let mut lut: Vec<u64> = Vec::with_capacity(lut_size);
     for i in  0..output_ciphertexts_count{
         for j in 0..lut_size {
-            let elem = vec_subfunctions[i%4](vec_functions[i/4](j as u64 % (1 << message_bits))) << delta_log_lut.0;
+            let elem = vec_functions[i/4](j as u64 % (1 << message_bits)) << delta_log_lut.0;
             lut.push(elem);
         }
     }
