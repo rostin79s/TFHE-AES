@@ -17,7 +17,7 @@ use tfhe::{
             keyswitch_lwe_ciphertext, LweCiphertext, LweCiphertextCount, LweCiphertextList, LweKeyswitchKey, LweSize
         }
     }, integer::wopbs, shortint::{
-        prelude::LweDimension, CarryModulus, MessageModulus, MultiBitPBSParameters, WopbsParameters
+        prelude::LweDimension, CarryModulus, MessageModulus, MultiBitPBSParameters, PBSParameters, WopbsParameters
     }
 };
 
@@ -63,12 +63,13 @@ use aligned_vec::CACHELINE_ALIGN;
 pub enum FHEParameters{
     MultiBit(MultiBitPBSParameters),
     Wopbs(WopbsParameters),
+    PBS(PBSParameters),
 }
 
  // 1 :   2, 10,  678,    2, 15,     4,  3,     1, 11,     2, 16,    136, 6.4e-20
  pub const PARAM_OPT: WopbsParameters =
  WopbsParameters {
-     lwe_dimension: LweDimension(656),
+     lwe_dimension: LweDimension(649),
      glwe_dimension: GlweDimension(2),
      polynomial_size: PolynomialSize(1024),
      lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -77,17 +78,17 @@ pub enum FHEParameters{
      glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
          3.162026630747649e-16,
      )),
-     pbs_base_log: DecompositionBaseLog(12),
-     pbs_level: DecompositionLevelCount(3),
-     ks_level: DecompositionLevelCount(4),
-     ks_base_log: DecompositionBaseLog(3),
-     pfks_level: DecompositionLevelCount(2),
-     pfks_base_log: DecompositionBaseLog(16),
+     pbs_base_log: DecompositionBaseLog(7),
+     pbs_level: DecompositionLevelCount(6),
+     ks_level: DecompositionLevelCount(6),
+     ks_base_log: DecompositionBaseLog(2),
+     pfks_level: DecompositionLevelCount(3),
+     pfks_base_log: DecompositionBaseLog(12),
      pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
          3.162026630747649e-16,
      )),
      cbs_level: DecompositionLevelCount(1),
-     cbs_base_log: DecompositionBaseLog(13),
+     cbs_base_log: DecompositionBaseLog(15),
      message_modulus: MessageModulus(2),
      carry_modulus: CarryModulus(1),
      ciphertext_modulus: CiphertextModulus::new_native(),
@@ -113,6 +114,11 @@ pub fn cpu_seed(
             params.lwe_dimension,
             params.glwe_dimension,
             params.polynomial_size,
+        ),
+        FHEParameters::PBS(params) => (
+            params.lwe_dimension(),
+            params.glwe_dimension(),
+            params.polynomial_size(),
         ),
     };
 
@@ -171,6 +177,12 @@ pub fn cpu_gen_bsk
             params.pbs_level,
             params.glwe_noise_distribution,
             params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.pbs_base_log(),
+            params.pbs_level(),
+            params.glwe_noise_distribution(),
+            params.ciphertext_modulus(),
         ),
     };
 
@@ -341,6 +353,7 @@ pub fn cpu_decrypt
     let plaintext_modulus = match pbs_params {
         FHEParameters::MultiBit(params) => params.message_modulus.0 * params.carry_modulus.0,
         FHEParameters::Wopbs(params) => params.message_modulus.0 * params.carry_modulus.0,
+        FHEParameters::PBS(params) => params.message_modulus().0 * params.carry_modulus().0,
     };
 
     let mut delta = (1_u64 << 63) / plaintext_modulus;

@@ -11,6 +11,7 @@ pub fn cpu_eb
     ct: &LweCiphertext<Vec<u64>>,
     buffers: &mut ComputationBuffers,
     fft: &FftView<'_>,
+    padding: bool
 
 ) -> LweCiphertextList<Vec<u64>>
 {
@@ -18,10 +19,17 @@ pub fn cpu_eb
     let plaintext_modulus = match wopbs_parameters {
         FHEParameters::MultiBit(params) => params.message_modulus.0 * params.carry_modulus.0,
         FHEParameters::Wopbs(params) => params.message_modulus.0 * params.carry_modulus.0,
+        FHEParameters::PBS(params) => params.message_modulus().0 * params.carry_modulus().0,
     };
     
     let nb_bit_to_extract = plaintext_modulus.ilog2() as usize;
-    let delta_log = DeltaLog(63 - nb_bit_to_extract);
+    let delta_log = if padding{
+        DeltaLog(63 - nb_bit_to_extract)
+    }
+    else{
+        DeltaLog(64 - nb_bit_to_extract)
+    };
+    println!("delta_log: {}", delta_log.0);
     let ciphertext_modulus = ct.ciphertext_modulus();
 
     let buffer_size_req = extract_bits_from_lwe_ciphertext_mem_optimized_requirement::<u64>(

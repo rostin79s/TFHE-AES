@@ -4,19 +4,37 @@ use super::*;
 
 pub fn cpu_gen_lut
 (
-    pbs_params: &MultiBitPBSParameters,
+    pbs_params: &FHEParameters,
     function: fn(u64) -> u64,
     padding: bool
 ) -> GlweCiphertext<Vec<u64>>
 {
-    let plaintext_modulus = pbs_params.message_modulus.0 * pbs_params.carry_modulus.0;
+    let (plaintext_modulus, polynomial_size, glwe_dimension, ciphertext_modulus) = match pbs_params {
+        FHEParameters::MultiBit(params) => (
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.message_modulus().0 * params.carry_modulus().0,
+            params.polynomial_size(),
+            params.glwe_dimension(),
+            params.ciphertext_modulus(),
+        ),
+    };
+
     let mut delta = (1_u64 << 63) / plaintext_modulus;
     if !padding{
         delta *= 2;
     }
-    let polynomial_size = pbs_params.polynomial_size;
-    let glwe_dimension = pbs_params.glwe_dimension;
-    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+
     let lut: GlweCiphertextOwned<u64> = generate_programmable_bootstrap_glwe_lut(
         polynomial_size,
         glwe_dimension.to_glwe_size(),
@@ -29,21 +47,19 @@ pub fn cpu_gen_lut
 }
 
 pub fn cpu_pbs(
-    pbs_params: &PBSParameters, 
     big_lwe_sk: &LweSecretKey<Vec<u64>>,
     fourier_bsk: &FourierLweBootstrapKey<ABox<[c64], ConstAlign<128>>>, 
     ct: &LweCiphertext<Vec<u64>>, 
     lut: &GlweCiphertext<Vec<u64>>
 ) -> LweCiphertext<Vec<u64>>{
 
-    let ciphertext_modulus = pbs_params.ciphertext_modulus();
+    let ciphertext_modulus = ct.ciphertext_modulus();
     let mut ct_out = LweCiphertext::new(
         0u64,
         big_lwe_sk.lwe_dimension().to_lwe_size(),
         ciphertext_modulus,
     );  
 
-    let start = std::time::Instant::now();
     programmable_bootstrap_lwe_ciphertext(
         &ct,
         &mut ct_out,
@@ -55,20 +71,19 @@ pub fn cpu_pbs(
 
 pub fn cpu_multipbs
 (
-    pbs_params: &MultiBitPBSParameters, 
     big_lwe_sk: &LweSecretKey<Vec<u64>>,
     fourier_multibsk: &FourierLweMultiBitBootstrapKey<ABox<[c64], ConstAlign<128>>>, 
     ct: &LweCiphertext<Vec<u64>>, 
     lut: &GlweCiphertext<Vec<u64>>,
 ) -> LweCiphertext<Vec<u64>>
 {
-    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+    let ciphertext_modulus = ct.ciphertext_modulus();
     let mut ct_out = LweCiphertext::new(
         0u64,
         big_lwe_sk.lwe_dimension().to_lwe_size(),
         ciphertext_modulus,
     );  
-    let start = std::time::Instant::now();
+
     multi_bit_programmable_bootstrap_lwe_ciphertext(
         &ct,
         &mut ct_out,
