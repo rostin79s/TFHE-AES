@@ -8,6 +8,7 @@ pub fn cpu_cbs_vp<
     wopbs_parameters: &WopbsParameters,
     bits: &LweCiphertextList<Vec<u64>>,
     lut: &PolynomialList<Vec<u64>>,
+    output_count: usize,
     wopbs_small_bsk: &FourierLweBootstrapKey<BskCont>,
     wopbs_large_lwe_secret_key: &LweSecretKey<Vec<u64>>,
     cbs_pfpksk: &LwePrivateFunctionalPackingKeyswitchKeyList<Vec<u64>>,
@@ -18,10 +19,10 @@ where
     BskCont: Container<Element = c64>,
 {
     let ciphertext_modulus = bits.ciphertext_modulus();
-    let poly_size = wopbs_parameters.polynomial_size;
-    let output_ciphertexts_count = lut.polynomial_count().0;
-    let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_ciphertexts_count);
+    let poly_size = wopbs_parameters.polynomial_size; 
+    let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_count);
     let nb_bit_to_extract = bits.lwe_ciphertext_count().0;
+    let lut_count = lut.polynomial_count().0;
 
     let mut output_cbs_vp = LweCiphertextList::new(
         0u64,
@@ -31,7 +32,6 @@ where
     );
 
     println!("Computing circuit bootstrap...");
-    println!("lwe dimension: {}", wopbs_parameters.lwe_dimension.0);
     let buffer_size_req = 
     circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized_requirement::<
         u64,
@@ -39,7 +39,7 @@ where
         LweCiphertextCount(nb_bit_to_extract),
         number_of_luts_and_output_vp_ciphertexts,
         LweSize(wopbs_parameters.lwe_dimension.0),
-        PolynomialCount(output_ciphertexts_count),
+        PolynomialCount(lut_count),
         wopbs_small_bsk.output_lwe_dimension().to_lwe_size(),
         wopbs_small_bsk.glwe_size(),
         poly_size,
