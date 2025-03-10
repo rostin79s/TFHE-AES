@@ -99,7 +99,7 @@ pub fn gpu_pbs(streams: &CudaStreams, bsk: &LweBootstrapKey<Vec<u64>>, vec_cts: 
     let cuda_bsk = CudaLweBootstrapKey::from_lwe_bootstrap_key(&bsk, &streams);
 
 
-    let gpu_index = streams.gpu_indexes[0].0;
+    let gpu_index = streams.gpu_indexes[0].get();
     let ciphertext_modulus = vec_cts[0].ciphertext_modulus();
     let ciphertext_counts = vec_cts.len();
     let lwe_size = vec_cts[0].lwe_size();
@@ -142,7 +142,7 @@ pub fn gpu_pbs(streams: &CudaStreams, bsk: &LweBootstrapKey<Vec<u64>>, vec_cts: 
 pub fn gpu_multi_pbs(streams: &CudaStreams, bsk: &LweMultiBitBootstrapKey<Vec<u64>>, vec_cts: &Vec<LweCiphertext<Vec<u64>>>, vec_luts: &Vec<GlweCiphertext<Vec<u64>>> ) -> CudaLweCiphertextList<u64>{
     let cuda_bsk = CudaLweMultiBitBootstrapKey::from_lwe_multi_bit_bootstrap_key(&bsk, &streams);
 
-    let gpu_index = streams.gpu_indexes[0].0;
+    let gpu_index = streams.gpu_indexes[0].get();
     let ciphertext_modulus = vec_cts[0].ciphertext_modulus();
     let ciphertext_counts = vec_cts.len();
     let lwe_size = vec_cts[0].lwe_size();

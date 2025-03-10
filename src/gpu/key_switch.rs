@@ -1,7 +1,7 @@
 use super::*;
 
 pub fn gpu_key_switch(streams: &CudaStreams, ksk: &LweKeyswitchKey<Vec<u64>>, vec_lwe_in: &Vec<LweCiphertext<Vec<u64>>>) -> CudaLweCiphertextList<u64>{
-    let gpu_index = streams.gpu_indexes[0].0;
+    let gpu_index = streams.gpu_indexes[0].get();
     let cuda_ksk = CudaLweKeyswitchKey::from_lwe_keyswitch_key(&ksk, &streams);
 
     let lwe_size = vec_lwe_in[0].lwe_size();

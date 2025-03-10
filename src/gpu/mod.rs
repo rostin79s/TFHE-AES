@@ -30,7 +30,6 @@ use tfhe::shortint::gen_keys;
 use tfhe::integer::gen_keys_radix;
 use tfhe::shortint::wopbs::*;
 use tfhe::shortint::parameters::parameters_wopbs_message_carry::LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS;
-use tfhe::shortint::parameters::V0_11_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
 use tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
 use tfhe::core_crypto::algorithms::lwe_keyswitch;
 use tfhe::core_crypto::prelude::*;
@@ -47,7 +46,6 @@ use tfhe::core_crypto::gpu::glwe_ciphertext_list::CudaGlweCiphertextList;
 use tfhe::integer::backward_compatibility::ciphertext;
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
 use tfhe::integer::{IntegerCiphertext, IntegerRadixCiphertext};
-use tfhe::shortint::parameters::{LEGACY_WOPBS_ONLY_2_BLOCKS_PARAM_MESSAGE_2_CARRY_3_KS_PBS, LEGACY_WOPBS_ONLY_4_BLOCKS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_0_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_1_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_2_KS_PBS, LEGACY_WOPBS_PARAM_MESSAGE_1_CARRY_3_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_2_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_0_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_2_COMPACT_PK_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MESSAGE_1_CARRY_3_KS_PBS_GAUSSIAN_2M64};
 use tfhe::shortint::Ciphertext;
 use tfhe::core_crypto::fft_impl::fft64::math::fft::FftView;
 use tfhe::core_crypto::fft_impl::fft64::crypto::bootstrap::FourierLweBootstrapKeyView;
@@ -66,10 +64,10 @@ pub enum FHEParameters{
     PBS(PBSParameters),
 }
 
- // 1 :   2, 10,  678,    2, 15,     4,  3,     1, 11,     2, 16,    136, 6.4e-20
+
  pub const PARAM_OPT: WopbsParameters =
  WopbsParameters {
-     lwe_dimension: LweDimension(649),
+     lwe_dimension: LweDimension(534),
      glwe_dimension: GlweDimension(2),
      polynomial_size: PolynomialSize(1024),
      lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -78,17 +76,17 @@ pub enum FHEParameters{
      glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
          3.162026630747649e-16,
      )),
-     pbs_base_log: DecompositionBaseLog(7),
-     pbs_level: DecompositionLevelCount(6),
-     ks_level: DecompositionLevelCount(6),
+     pbs_base_log: DecompositionBaseLog(12),
+     pbs_level: DecompositionLevelCount(3),
+     ks_level: DecompositionLevelCount(5),
      ks_base_log: DecompositionBaseLog(2),
-     pfks_level: DecompositionLevelCount(3),
-     pfks_base_log: DecompositionBaseLog(12),
+     pfks_level: DecompositionLevelCount(2),
+     pfks_base_log: DecompositionBaseLog(17),
      pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
          3.162026630747649e-16,
      )),
-     cbs_level: DecompositionLevelCount(1),
-     cbs_base_log: DecompositionBaseLog(15),
+     cbs_level: DecompositionLevelCount(2),
+     cbs_base_log: DecompositionBaseLog(9),
      message_modulus: MessageModulus(2),
      carry_modulus: CarryModulus(1),
      ciphertext_modulus: CiphertextModulus::new_native(),

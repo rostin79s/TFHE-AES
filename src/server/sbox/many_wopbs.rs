@@ -67,7 +67,7 @@ pub fn many_wopbs_without_padding(ct_in: &mut BaseRadixCiphertext<Ciphertext>, w
     custom_set_buffers(&mut buffers, &fourier_bsk, &wopbs_key_short, &vec_poly_lut, &extracted_bits, &vec_output_cbs_vp_ct, &fft);
     
     match &sks.bootstrapping_key {
-        ShortintBootstrappingKey::Classic(bsk) => {
+        ShortintBootstrappingKey::Classic { bsk, .. } => {
             many_circuit_bootstrap_boolean_vertical_packing(
                 vec_poly_lut,
                 bsk.as_view(),
