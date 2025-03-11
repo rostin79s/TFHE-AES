@@ -83,6 +83,8 @@ fn example(){
     vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
     vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
     vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
+    vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
+    // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
     // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
 
 
@@ -152,6 +154,18 @@ fn example(){
         &fft,
         &mut buffers,
     );
+
+    // let out_bits_list = cpu_cbs_vp(
+    //     &wopbs_params,
+    //     &wopbs_bits,
+    //     &lut,
+    //     output_count,
+    //     &wopbs_fourier_bsk,
+    //     &wopbs_big_lwe_sk,
+    //     &cbs_pfpksk,
+    //     &fft,
+    //     &mut buffers,
+    // );
 
     let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
 
