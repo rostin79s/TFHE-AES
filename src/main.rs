@@ -26,7 +26,7 @@ fn example(){
     let pksk = cpu_gen_pksk(&pbs_params, &small_lwe_sk, &glwe_sk, &mut encryption_generator);
     
 
-    let clear1 = 2;
+    let clear1 = 5;
     let ct1 = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear1);
 
     let clear2 = 5u64;
@@ -77,6 +77,7 @@ fn example(){
     use tfhe::core_crypto::prelude::trivially_encrypt_lwe_ciphertext;
     use tfhe::core_crypto::prelude::Plaintext;
     use tfhe::core_crypto::prelude::LweCiphertext;
+    use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign;
 
     let poly_size = pbs_params.polynomial_size.0;
 
@@ -85,10 +86,13 @@ fn example(){
     println!("box_size: {}", box_size);
     let mut vec_cts = Vec::new();
     for i in 0..cts_count{
-        // let ct = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, i as u64);
-        let mut ct = LweCiphertext::new(0u64, pbs_params.lwe_dimension.to_lwe_size(), pbs_params.ciphertext_modulus);
-        let plaintext = Plaintext((i << 59) as u64);
-        trivially_encrypt_lwe_ciphertext(&mut ct, plaintext);
+        let clear = (i) % 16;
+        let ct = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear as u64);
+        let ct = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct, &lut1);
+        let ct = cpu_ksk(&ksk, &ct);
+        // let mut ct = LweCiphertext::new(0u64, pbs_params.lwe_dimension.to_lwe_size(), pbs_params.ciphertext_modulus);
+        // let plaintext = Plaintext((i << 59) as u64);
+        // trivially_encrypt_lwe_ciphertext(&mut ct, plaintext);
         vec_cts.push(ct);
     }
     let list_cts = cpu_veclwe_to_lwelist(&vec_cts);
@@ -127,16 +131,42 @@ fn example(){
             });
         slice_wrapping_add_assign(output_glwe.as_mut(), buffer.as_ref());
     }
+    
 
     let half_box_size = box_size / 2;
-    let mut acc = output_glwe.get_body().as_ref().to_vec();
-    acc.rotate_left(half_box_size);
 
     let mut body = output_glwe.get_mut_body();
-    body.as_mut().copy_from_slice(acc.as_ref());
+    let mut poly_body = body.as_mut_polynomial();
+    polynomial_wrapping_monic_monomial_div_assign(&mut poly_body, MonomialDegree(half_box_size));
+
+
+
+    let mut mask = output_glwe.get_mut_mask();
+    let mut poly_mask = mask.as_mut_polynomial_list();
+    let mut poly_mask = poly_mask.get_mut(0);
+    polynomial_wrapping_monic_monomial_div_assign(&mut poly_mask, MonomialDegree(half_box_size));
+
+    // let mut acc = output_glwe.get_body().as_ref().to_vec();
+    // for a_i in acc[0..half_box_size].iter_mut() {
+    //     *a_i = (*a_i).wrapping_neg();
+    // }
+    // acc.rotate_left(half_box_size);
+
+    // let mut body = output_glwe.get_mut_body();
+    // body.as_mut().copy_from_slice(acc.as_ref());
+
+
+    // let mut acc2 = output_glwe.get_mask().as_ref().to_vec();
+    // acc2.rotate_left(half_box_size);
+    // for a_i in acc2[0..half_box_size].iter_mut() {
+    //     *a_i = (*a_i).wrapping_neg();
+    // }
+
+    // let mut mask = output_glwe.get_mut_mask();
+    // mask.as_mut().copy_from_slice(acc2.as_ref());
 
     println!("output_glwe: {:?}", output_glwe);
-    println!("lut1: {:?}", lut1);
+    // println!("lut1: {:?}", lut1);
 
 
 
