@@ -62,3 +62,19 @@ pub fn cpu_many_ksk(ksk: &LweKeyswitchKey<Vec<u64>>, vec_lwe_in: &Vec<LweCiphert
 
     
 }
+
+pub fn cpu_pksk(pksk: &LwePackingKeyswitchKey<Vec<u64>>, glwe_sks: &GlweSecretKey<Vec<u64>>, list_cts: &LweCiphertextList<Vec<u64>>) -> GlweCiphertext<Vec<u64>>{
+    let ciphertext_modulus = list_cts.ciphertext_modulus();
+    let mut output_glwe = GlweCiphertext::new(
+    0u64,
+    glwe_sks.glwe_dimension().to_glwe_size(),
+    glwe_sks.polynomial_size(),
+    ciphertext_modulus,
+    );
+    keyswitch_lwe_ciphertext_list_and_pack_in_glwe_ciphertext(
+    &pksk,
+    &list_cts,
+    &mut output_glwe,
+    );
+    return output_glwe;
+}

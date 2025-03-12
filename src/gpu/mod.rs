@@ -206,6 +206,30 @@ pub fn cpu_gen_bsk
     return (bsk, fourier_bsk);
 }
 
+pub fn cpu_gen_pksk
+(
+    pbs_params: &MultiBitPBSParameters, 
+    input_lwe_secret_key: &LweSecretKey<Vec<u64>>, 
+    output_glwe_secret_key: &GlweSecretKey<Vec<u64>>,
+    encryption_generator: &mut EncryptionRandomGenerator<DefaultRandomGenerator>,
+) -> LwePackingKeyswitchKey<Vec<u64>>
+{
+    let decomp_base_log = pbs_params.pbs_base_log;
+    let decomp_level_count = pbs_params.pbs_level;
+    let glwe_noise_distribution = pbs_params.glwe_noise_distribution;
+    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+    let pksk: LwePackingKeyswitchKey<Vec<u64>> = allocate_and_generate_new_lwe_packing_keyswitch_key(
+        &input_lwe_secret_key,
+        &output_glwe_secret_key,
+        decomp_base_log,
+        decomp_level_count,
+        glwe_noise_distribution,
+        ciphertext_modulus,
+        encryption_generator,
+    );
+    return pksk;
+}
+
 pub fn cpu_gen_multibsk
 (
     pbs_params: &MultiBitPBSParameters, 
