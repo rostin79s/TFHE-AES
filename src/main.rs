@@ -26,68 +26,25 @@ fn example(){
     let pksk = cpu_gen_pksk(&pbs_params, &small_lwe_sk, &glwe_sk, &mut encryption_generator);
     
 
-    let clear1 = 5;
+    let clear1 = 3;
     let ct1 = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear1);
-
-    let clear2 = 5u64;
-    let ct2 = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear2);
-
-    let clear3 = 7u64;
-    let ct3 = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear3);
-
-
-    
-
-
 
 
     let f1 = |x: u64| x;
     let lut1 = cpu_gen_lut(&FHEParameters::MultiBit(pbs_params), f1, true);
-    // println!("lut1: {:?}", temp2);
-
-
-    let f2 = |x: u64| x + 3;
-    let lut2 = cpu_gen_lut(&FHEParameters::MultiBit(pbs_params), f2, true);
-
-    let f3 = |x: u64| x + 1;
-    let lut3 = cpu_gen_lut(&FHEParameters::MultiBit(pbs_params), f3, true);
-
-
-    // let ct1_out = cpu_pbs(&pbs_params, &fourier_bsk, &ct1, &lut1);
 
     let ct1_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct1, &lut1);
-    let ct2_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct2, &lut1);
-    let ct3_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct3, &lut1);
-    let dec1 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &ct1_out, true);
-    println!("dec1: {}", dec1);
-
-    // let ct2_out = cpu_ksk(&ksk, &ct2_out);
-    // let ct3_out = cpu_ksk(&ksk, &ct3_out);
-
+    let ct1_out = cpu_ksk(&ksk, &ct1_out);
 
 
     // packing key switch
-    use tfhe::core_crypto::prelude::GlweCiphertext;
-    use tfhe::core_crypto::prelude::Numeric;
-    use tfhe::core_crypto::prelude::keyswitch_lwe_ciphertext_into_glwe_ciphertext;
-    use tfhe::core_crypto::prelude::ContiguousEntityContainerMut;
-    use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_mul_assign;
-    use tfhe::core_crypto::prelude::MonomialDegree;
-    use tfhe::core_crypto::prelude::slice_algorithms::slice_wrapping_add_assign;
-    use tfhe::core_crypto::prelude::trivially_encrypt_lwe_ciphertext;
-    use tfhe::core_crypto::prelude::Plaintext;
-    use tfhe::core_crypto::prelude::LweCiphertext;
-    use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign;
-
-    let poly_size = pbs_params.polynomial_size.0;
 
     let cts_count = 16;
-    let box_size = poly_size / cts_count;
-    println!("box_size: {}", box_size);
+    let f2 = |x: u64| x * 2;
     let mut vec_cts = Vec::new();
     for i in 0..cts_count{
-        let clear = (i) % 16;
-        let ct = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear as u64);
+        let clear = (f2(i)) % cts_count;
+        let ct = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear);
         let ct = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct, &lut1);
         let ct = cpu_ksk(&ksk, &ct);
         // let mut ct = LweCiphertext::new(0u64, pbs_params.lwe_dimension.to_lwe_size(), pbs_params.ciphertext_modulus);
@@ -100,85 +57,15 @@ fn example(){
 
     let start = std::time::Instant::now();
 
-    let ciphertext_modulus = list_cts.ciphertext_modulus();
-    let mut output_glwe = GlweCiphertext::new(
-    0u64,
-    glwe_sk.glwe_dimension().to_glwe_size(),
-    glwe_sk.polynomial_size(),
-    ciphertext_modulus,
-    );
+    let glwe_ct = cpu_gen_encrypted_lut(&FHEParameters::MultiBit(pbs_params), &pksk, &list_cts);
 
-    let mut buffers = Vec::new();
-    for ct in list_cts.iter(){
-        let mut buffer = GlweCiphertext::new(
-            u64::ZERO,
-            output_glwe.glwe_size(),
-            output_glwe.polynomial_size(),
-            output_glwe.ciphertext_modulus(),
-        );
-        keyswitch_lwe_ciphertext_into_glwe_ciphertext(&pksk, &ct, &mut buffer);
-        buffers.push(buffer);
-    }
-
-
-    for degree in 0..poly_size {
-        let mut buffer = buffers[degree / box_size].clone();
-        buffer
-            .as_mut_polynomial_list()
-            .iter_mut()
-            .for_each(|mut poly| {
-                polynomial_wrapping_monic_monomial_mul_assign(&mut poly, MonomialDegree(degree));
-            });
-        slice_wrapping_add_assign(output_glwe.as_mut(), buffer.as_ref());
-    }
-    
-
-    let half_box_size = box_size / 2;
-
-    let mut body = output_glwe.get_mut_body();
-    let mut poly_body = body.as_mut_polynomial();
-    polynomial_wrapping_monic_monomial_div_assign(&mut poly_body, MonomialDegree(half_box_size));
-
-
-
-    let mut mask = output_glwe.get_mut_mask();
-    let mut poly_mask = mask.as_mut_polynomial_list();
-    let mut poly_mask = poly_mask.get_mut(0);
-    polynomial_wrapping_monic_monomial_div_assign(&mut poly_mask, MonomialDegree(half_box_size));
-
-    // let mut acc = output_glwe.get_body().as_ref().to_vec();
-    // for a_i in acc[0..half_box_size].iter_mut() {
-    //     *a_i = (*a_i).wrapping_neg();
-    // }
-    // acc.rotate_left(half_box_size);
-
-    // let mut body = output_glwe.get_mut_body();
-    // body.as_mut().copy_from_slice(acc.as_ref());
-
-
-    // let mut acc2 = output_glwe.get_mask().as_ref().to_vec();
-    // acc2.rotate_left(half_box_size);
-    // for a_i in acc2[0..half_box_size].iter_mut() {
-    //     *a_i = (*a_i).wrapping_neg();
-    // }
-
-    // let mut mask = output_glwe.get_mut_mask();
-    // mask.as_mut().copy_from_slice(acc2.as_ref());
-
-    println!("output_glwe: {:?}", output_glwe);
-    // println!("lut1: {:?}", lut1);
-
-
-
-    // let glwe_ct = cpu_pksk(&pksk2, &glwe_sk, &list_cts);
-    let glwe_ct = output_glwe;
     println!("packing key switch took: {:?}", start.elapsed());
 
 
-    let ct1_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct1, &glwe_ct);
+    let ct1_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct1_out, &glwe_ct);
     let dec1 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &ct1_out, true);
     println!("dec1 large: {}", dec1);
-    assert_eq!(dec1, clear1);
+    assert_eq!(dec1, f2(clear1));
 
     let ct1_switched = cpu_ksk(&ksk, &ct1_out);
     let dec1 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &small_lwe_sk, &ct1_switched, true);

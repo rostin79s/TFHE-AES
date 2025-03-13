@@ -1,6 +1,93 @@
 use tfhe::shortint::PBSParameters;
 
+use tfhe::core_crypto::prelude::GlweCiphertext;
+use tfhe::core_crypto::prelude::Numeric;
+use tfhe::core_crypto::prelude::keyswitch_lwe_ciphertext_into_glwe_ciphertext;
+use tfhe::core_crypto::prelude::ContiguousEntityContainerMut;
+use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_mul_assign;
+use tfhe::core_crypto::prelude::MonomialDegree;
+use tfhe::core_crypto::prelude::slice_algorithms::slice_wrapping_add_assign;
+use tfhe::core_crypto::prelude::trivially_encrypt_lwe_ciphertext;
+use tfhe::core_crypto::prelude::Plaintext;
+use tfhe::core_crypto::prelude::LweCiphertext;
+use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign;
+
 use super::*;
+
+pub fn cpu_gen_encrypted_lut
+(
+    params: &FHEParameters,
+    pksk: &LwePackingKeyswitchKey<Vec<u64>>,
+    list_cts: &LweCiphertextList<Vec<u64>>,
+) -> GlweCiphertext<Vec<u64>>
+{
+    let (glwe_size, poly_size) = match params {
+        FHEParameters::MultiBit(params) => (
+            params.glwe_dimension.to_glwe_size(),
+            params.polynomial_size,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.glwe_dimension.to_glwe_size(),
+            params.polynomial_size,
+        ),
+        FHEParameters::PBS(params) => (
+            params.glwe_dimension().to_glwe_size(),
+            params.polynomial_size(),
+        ),
+        
+    };
+
+    let cts_count = list_cts.lwe_ciphertext_count().0;
+    let box_size = poly_size.0 / cts_count;
+    let ciphertext_modulus = list_cts.ciphertext_modulus();
+    let mut output_glwe = GlweCiphertext::new(
+    0u64,
+    glwe_size,
+    poly_size,
+    ciphertext_modulus,
+    );
+
+    let mut buffers = Vec::new();
+    for ct in list_cts.iter(){
+        let mut buffer = GlweCiphertext::new(
+            u64::ZERO,
+            output_glwe.glwe_size(),
+            output_glwe.polynomial_size(),
+            output_glwe.ciphertext_modulus(),
+        );
+        keyswitch_lwe_ciphertext_into_glwe_ciphertext(&pksk, &ct, &mut buffer);
+        buffers.push(buffer);
+    }
+
+
+    for degree in 0..poly_size.0 {
+        let mut buffer = buffers[degree / box_size].clone();
+        buffer
+            .as_mut_polynomial_list()
+            .iter_mut()
+            .for_each(|mut poly| {
+                polynomial_wrapping_monic_monomial_mul_assign(&mut poly, MonomialDegree(degree));
+            });
+        slice_wrapping_add_assign(output_glwe.as_mut(), buffer.as_ref());
+    }
+    
+
+    let half_box_size = box_size / 2;
+
+    let mut body = output_glwe.get_mut_body();
+    let mut poly_body = body.as_mut_polynomial();
+    polynomial_wrapping_monic_monomial_div_assign(&mut poly_body, MonomialDegree(half_box_size));
+
+
+
+    let mut mask = output_glwe.get_mut_mask();
+    let mut poly_mask = mask.as_mut_polynomial_list();
+    let mut poly_mask = poly_mask.get_mut(0);
+    polynomial_wrapping_monic_monomial_div_assign(&mut poly_mask, MonomialDegree(half_box_size));
+
+    return output_glwe;
+}
+
 
 pub fn cpu_gen_lut
 (
