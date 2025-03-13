@@ -79,7 +79,7 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
         lwe_list_out.iter_mut(),
     ) {
         vertical_packing(lut, lwe_out, ggsw_list.as_view(), fft, stack);
-        break;
+        // break;
     }
 
     println!("vertical_packing: {:?}", start.elapsed());
