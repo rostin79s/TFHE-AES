@@ -68,8 +68,8 @@ pub enum FHEParameters{
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
     lwe_dimension: LweDimension(534),
-    glwe_dimension: GlweDimension(1),
-    polynomial_size: PolynomialSize(256),
+    glwe_dimension: GlweDimension(2),
+    polynomial_size: PolynomialSize(1024),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
     )),

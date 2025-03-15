@@ -12,7 +12,8 @@ pub fn bloom_gen_lwe
     encryption_generator: &mut EncryptionRandomGenerator<DefaultRandomGenerator>,
     small_lwe_sk: &LweSecretKey<Vec<u64>>,
     indices: &Vec<usize>, 
-    wopbs_size: usize
+    wopbs_size: usize,
+    m: usize
 ) -> Vec<Vec<LweCiphertext<Vec<u64>>>>
 {
     let plaintext_modulus: u64 = match pbs_params  {
@@ -25,7 +26,7 @@ pub fn bloom_gen_lwe
     
     let mut lwe_cts = Vec::new();
     for index in indices{
-        let (mut q, r) = (index / wopbs_chunk, index % wopbs_chunk);
+        let (mut q, r) = ((m-1) / wopbs_chunk, index % wopbs_chunk);
         let mut bits_r = Vec::new();
         for i in (0..wopbs_size).rev() {
             bits_r.push((r >> i) & 1);

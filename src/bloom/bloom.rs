@@ -35,7 +35,6 @@ pub fn bloom_create(m: usize, h: usize, db_size: usize) -> (Vec<u64>, Vec<u64>, 
     for _ in 0..db_size {
         let value = rng.gen::<u64>(); // Generate random value
         values.push(value);
-        println!("value: {}", value);
         for &seed in &hash_seeds {
             let index = hash_value(value, seed) % m;
             bloom_filter[index] = 1;

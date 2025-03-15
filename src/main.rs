@@ -338,20 +338,21 @@ fn example(){
 
 
 fn bloom(){
-    let prob_failure = 1e-1; // False positive rate
-    let db_size = 2_usize.pow(1); // 2^20 database size
+    let prob_failure = 1e-3; // False positive rate
+    let db_size = 2_usize.pow(13); // 2^20 database size
 
     let (m, h) = bloom_params(prob_failure, db_size);
     println!("Computed Bloom Filter Size (m): {}", m);
     println!("Computed Number of Hash Functions (h): {}", h);
 
+    let m = 1 << 16;
+
     let (hash_seeds, bloom_filter, values) = bloom_create(m, h, db_size);
     println!("Generated {} hash functions and created Bloom filter of size {}", hash_seeds.len(), bloom_filter.len());
-    println!("Bloom filter: {:?}", bloom_filter);
 
     let value = values[0];
     let indices = bloom_query(value, &hash_seeds, m);
-    println!("Querying value {} with hash functions {:?} yields indices {:?}", value, hash_seeds, indices);
+    println!("indices {:?}", indices);
 
 
     let pbs_params = V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
@@ -370,12 +371,22 @@ fn bloom(){
     let (ksk_wopbs_large_to_wopbs_small, ksk_pbs_large_to_wopbs_large, ksk_wopbs_large_to_pbs_small, cbs_pfpksk) = cpu_gen_wopbs_keys(&pbs_params, &small_lwe_sk, &big_lwe_sk, &wopbs_params, &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &wopbs_big_lwe_sk, &wopbs_glwe_secret_key);
 
 
-    let wopbs_size = 4;
+    let wopbs_size = 16;
     
-    let vec_lwe = bloom_gen_lwe(&wopbs_params, &FHEParameters::MultiBit(pbs_params), &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &mut encryption_generator, &small_lwe_sk, &indices, wopbs_size);
-    let vec_lwe_out = bloom_encrypted_query(&wopbs_big_lwe_sk, &wopbs_params, &FHEParameters::MultiBit(pbs_params), &fourier_multibsk, &ksk, &pksk, &wopbs_fourier_bsk, &cbs_pfpksk, &vec_lwe, wopbs_size, &bloom_filter);
+    let vec_lwe = bloom_gen_lwe(&wopbs_params, &FHEParameters::MultiBit(pbs_params), &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &mut encryption_generator, &small_lwe_sk, &indices, wopbs_size, m);
+    
+    
+    let vec_lwe_out = bloom_encrypted_query(&wopbs_big_lwe_sk, &wopbs_params, &FHEParameters::MultiBit(pbs_params), &fourier_multibsk, &ksk_wopbs_large_to_pbs_small, &pksk, &wopbs_fourier_bsk, &cbs_pfpksk, &vec_lwe, wopbs_size, &bloom_filter);
+    
+    
     for (index, lwe) in vec_lwe_out.iter().enumerate(){
-        let dec = cpu_decrypt(&&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &lwe, true);
+        let dec: u64;
+        if m > (1 << wopbs_size){
+            dec = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &lwe, true);
+        }
+        else{
+            dec = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &lwe, true);
+        }
         println!("index and bit: {} and {}", index, dec);
     }
 
