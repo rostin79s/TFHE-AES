@@ -1,14 +1,13 @@
 mod gpu;
 mod server;
-pub mod tables;
-use server::sbox::gen_lut::gen_lut;
+mod bloom;
+mod tables;
 
+use bloom::{bloom::*, bloom_client::bloom_gen_lwe, bloom_server::bloom_encrypted_query};
 use gpu::{
     cbs_vp::*, cpu_decrypt, cpu_encrypt, cpu_gen_bsk, cpu_gen_ksk, cpu_gen_multibsk, cpu_gen_pksk, cpu_gen_wopbs_keys, cpu_lwelist_to_veclwe, cpu_params, cpu_seed, cpu_veclwe_to_lwelist, extract_bits::*, key_switch::*, pbs::*, FHEParameters
 };
-use tfhe::{core_crypto::{gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, lwe_ciphertext_add_assign, par_allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list, ComputationBuffers, ContiguousEntityContainer, Fft}}, integer::wopbs, shortint::{gen_keys, parameters::{v1_0::V1_0_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64}}};
-use tfhe::core_crypto::prelude::par_allocate_and_generate_new_lwe_bootstrap_key;
-use tfhe::core_crypto::prelude::allocate_and_generate_new_lwe_packing_keyswitch_key;
+use tfhe::{core_crypto::{gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, lwe_ciphertext_add_assign, par_allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list, ComputationBuffers, ContiguousEntityContainer, Fft}}, integer::wopbs, shortint::{gen_keys, parameters::{v0_11::multi_bit::gaussian::p_fail_2_minus_64::ks_pbs::{V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_6_CARRY_1_KS_PBS_GAUSSIAN_2M64}, v1_0::{V1_0_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V1_0_PARAM_MULTI_BIT_GROUP_2_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M128}, LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64}}};
 
 
 
@@ -25,12 +24,12 @@ fn example(){
     let pksk = cpu_gen_pksk(&pbs_params, &small_lwe_sk, &glwe_sk, &mut encryption_generator);
     
 
-    let clear1 = 11;
-    let ct1 = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear1);
+    let clear1 = 1;
+    let ct1 = cpu_encrypt(&FHEParameters::MultiBit(pbs_params), &mut encryption_generator, &small_lwe_sk, clear1, true);
 
     let f1 = |x: u64| x;
     let lut1 = cpu_gen_lut(&FHEParameters::MultiBit(pbs_params), f1, true);
-    let ct1_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct1, &lut1);
+    let ct1_out = cpu_multipbs(&fourier_multibsk, &ct1, &lut1);
     let ct1_out = cpu_ksk(&ksk, &ct1_out);
 
 
@@ -41,8 +40,8 @@ fn example(){
     let mut vec_cts = Vec::new();
     for i in 0..cts_count{
         let clear = (f2(i)) % cts_count;
-        let ct = cpu_encrypt(&pbs_params, &mut encryption_generator, &small_lwe_sk, clear);
-        let ct = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct, &lut1);
+        let ct = cpu_encrypt(&FHEParameters::MultiBit(pbs_params), &mut encryption_generator, &small_lwe_sk, clear, true);
+        let ct = cpu_multipbs(&fourier_multibsk, &ct, &lut1);
         let ct = cpu_ksk(&ksk, &ct);
         // let mut ct = LweCiphertext::new(0u64, pbs_params.lwe_dimension.to_lwe_size(), pbs_params.ciphertext_modulus);
         // let plaintext = Plaintext((i << 59) as u64);
@@ -58,8 +57,10 @@ fn example(){
 
     println!("packing key switch took: {:?}", start.elapsed());
 
+    let enc_lut_size = glwe_ct.clone().into_container().len();
+    println!("enc_lut_size: {}", enc_lut_size);
 
-    let ct1_out = cpu_multipbs(&big_lwe_sk, &fourier_multibsk, &ct1_out, &glwe_ct);
+    let ct1_out = cpu_multipbs(&fourier_multibsk, &ct1_out, &glwe_ct);
     let dec1 = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &ct1_out, true);
     println!("dec1 large: {}", dec1);
     assert_eq!(dec1, f2(clear1));
@@ -82,9 +83,9 @@ fn example(){
     // let pbs_bits5 = pbs_bits1.clone();
 
     let mut vec_pbs_bits = cpu_lwelist_to_veclwe(&pbs_bits1);
-    vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
-    vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
-    vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
+    // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
+    // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
+    // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
     // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
     // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
     // vec_pbs_bits.extend(cpu_lwelist_to_veclwe(&pbs_bits1));
@@ -138,22 +139,31 @@ fn example(){
 
 
 
-
-    let f1: fn(u64) -> u64 = |x: u64| x + 1;
+    let output_count = 1;
+    let f1: fn(u64) -> u64 = |x: u64| x;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
     let lut = cpu_generate_lut_vp(&wopbs_params, &vec_functions, output_count, false);
+
+    
+    let cont = lut.clone().into_container();
+    println!("cont: {:?}", cont);
+    let cont_size = cont.len();
+    println!("cont size: {}", cont_size);
+    let poly_count = lut.polynomial_count().0;
+    println!("poly_count: {}", poly_count);
     
     let lut_size = lut.polynomial_size();
     println!("lut_size: {}", lut_size.0);
 
+
+    
     let out_bits_list = cpu_cbs_vp(
         &wopbs_params,
         &wopbs_bits,
         &lut,
         output_count,
         &wopbs_fourier_bsk,
-        &wopbs_big_lwe_sk,
         &cbs_pfpksk,
         &fft,
         &mut buffers,
@@ -182,6 +192,7 @@ fn example(){
     }
 
     println!("out_integer: {}", out_integer);
+    assert_eq!(out_integer, f1(integer));
 
 
     // let vec_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_out_bits);
@@ -325,10 +336,59 @@ fn example(){
  
 }
 
-// Main function to run the FHE AES CTR encryption. All functions, AES key expansion, encryption and decryption are run single threaded. Only CTR is parallelized.
-fn main() {
-    loop{
-        example();
-        break;
+
+fn bloom(){
+    let prob_failure = 1e-1; // False positive rate
+    let db_size = 2_usize.pow(1); // 2^20 database size
+
+    let (m, h) = bloom_params(prob_failure, db_size);
+    println!("Computed Bloom Filter Size (m): {}", m);
+    println!("Computed Number of Hash Functions (h): {}", h);
+
+    let (hash_seeds, bloom_filter, values) = bloom_create(m, h, db_size);
+    println!("Generated {} hash functions and created Bloom filter of size {}", hash_seeds.len(), bloom_filter.len());
+    println!("Bloom filter: {:?}", bloom_filter);
+
+    let value = values[0];
+    let indices = bloom_query(value, &hash_seeds, m);
+    println!("Querying value {} with hash functions {:?} yields indices {:?}", value, hash_seeds, indices);
+
+
+    let pbs_params = V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64;
+
+    let (mut boxed_seeder, mut encryption_generator, small_lwe_sk, glwe_sk, big_lwe_sk ) = cpu_seed(&FHEParameters::MultiBit(pbs_params));
+    let ksk = cpu_gen_ksk(&pbs_params, &mut encryption_generator, &small_lwe_sk, &big_lwe_sk);
+    let (bsk, fourier_bsk) = cpu_gen_bsk(&FHEParameters::MultiBit(pbs_params), &mut boxed_seeder, &small_lwe_sk, &glwe_sk);
+    let (multibsk, fourier_multibsk) = cpu_gen_multibsk(&pbs_params, &mut encryption_generator, &small_lwe_sk, &glwe_sk);
+    let pksk = cpu_gen_pksk(&pbs_params, &small_lwe_sk, &glwe_sk, &mut encryption_generator);
+
+
+
+    let wopbs_params = cpu_params();
+    let (mut wopbs_boxed_seeder, mut wopbs_encryption_generator, wopbs_small_lwe_sk, wopbs_glwe_secret_key, wopbs_big_lwe_sk) =  cpu_seed(&FHEParameters::Wopbs(wopbs_params));
+    let (wopbs_bsk, wopbs_fourier_bsk) = cpu_gen_bsk(&FHEParameters::Wopbs(wopbs_params), &mut wopbs_boxed_seeder, &wopbs_small_lwe_sk, &wopbs_glwe_secret_key);
+    let (ksk_wopbs_large_to_wopbs_small, ksk_pbs_large_to_wopbs_large, ksk_wopbs_large_to_pbs_small, cbs_pfpksk) = cpu_gen_wopbs_keys(&pbs_params, &small_lwe_sk, &big_lwe_sk, &wopbs_params, &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &wopbs_big_lwe_sk, &wopbs_glwe_secret_key);
+
+
+    let wopbs_size = 4;
+    
+    let vec_lwe = bloom_gen_lwe(&wopbs_params, &FHEParameters::MultiBit(pbs_params), &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &mut encryption_generator, &small_lwe_sk, &indices, wopbs_size);
+    let vec_lwe_out = bloom_encrypted_query(&wopbs_big_lwe_sk, &wopbs_params, &FHEParameters::MultiBit(pbs_params), &fourier_multibsk, &ksk, &pksk, &wopbs_fourier_bsk, &cbs_pfpksk, &vec_lwe, wopbs_size, &bloom_filter);
+    for (index, lwe) in vec_lwe_out.iter().enumerate(){
+        let dec = cpu_decrypt(&&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &lwe, true);
+        println!("index and bit: {} and {}", index, dec);
     }
+
+
+
+}
+
+
+fn main() {
+    // loop{
+    //     example();
+    //     break;
+    // }
+
+    bloom();
 }

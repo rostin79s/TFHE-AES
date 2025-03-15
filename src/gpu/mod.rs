@@ -68,8 +68,8 @@ pub enum FHEParameters{
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
     lwe_dimension: LweDimension(534),
-    glwe_dimension: GlweDimension(2),
-    polynomial_size: PolynomialSize(1024),
+    glwe_dimension: GlweDimension(1),
+    polynomial_size: PolynomialSize(256),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
     )),
@@ -87,6 +87,62 @@ WopbsParameters {
     )),
     cbs_level: DecompositionLevelCount(2),
     cbs_base_log: DecompositionBaseLog(9),
+    message_modulus: MessageModulus(2),
+    carry_modulus: CarryModulus(1),
+    ciphertext_modulus: CiphertextModulus::new_native(),
+    encryption_key_choice: EncryptionKeyChoice::Big,
+};
+
+pub const EXP: WopbsParameters =
+WopbsParameters {
+    lwe_dimension: LweDimension(659),
+    glwe_dimension: GlweDimension(2),
+    polynomial_size: PolynomialSize(1024),
+    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.0517578125e-05,
+    )),
+    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    pbs_base_log: DecompositionBaseLog(9),
+    pbs_level: DecompositionLevelCount(4),
+    ks_level: DecompositionLevelCount(6),
+    ks_base_log: DecompositionBaseLog(2),
+    pfks_level: DecompositionLevelCount(2),
+    pfks_base_log: DecompositionBaseLog(16),
+    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    cbs_level: DecompositionLevelCount(3),
+    cbs_base_log: DecompositionBaseLog(7),
+    message_modulus: MessageModulus(2),
+    carry_modulus: CarryModulus(1),
+    ciphertext_modulus: CiphertextModulus::new_native(),
+    encryption_key_choice: EncryptionKeyChoice::Big,
+};
+
+pub const EXP2: WopbsParameters =
+WopbsParameters {
+    lwe_dimension: LweDimension(690),
+    glwe_dimension: GlweDimension(2),
+    polynomial_size: PolynomialSize(1024),
+    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.0517578125e-05,
+    )),
+    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    pbs_base_log: DecompositionBaseLog(2),
+    pbs_level: DecompositionLevelCount(22),
+    ks_level: DecompositionLevelCount(14),
+    ks_base_log: DecompositionBaseLog(1),
+    pfks_level: DecompositionLevelCount(5),
+    pfks_base_log: DecompositionBaseLog(8),
+    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    cbs_level: DecompositionLevelCount(10),
+    cbs_base_log: DecompositionBaseLog(3),
     message_modulus: MessageModulus(2),
     carry_modulus: CarryModulus(1),
     ciphertext_modulus: CiphertextModulus::new_native(),
@@ -342,16 +398,37 @@ pub fn cpu_gen_wopbs_keys
 
 pub fn cpu_encrypt
 (
-    pbs_params: &MultiBitPBSParameters,
+    pbs_params: &FHEParameters,
     encryption_generator: &mut EncryptionRandomGenerator<DefaultRandomGenerator>,
     small_lwe_sk: &LweSecretKey<Vec<u64>>,
     clear: u64,
+    padding: bool,
 ) -> LweCiphertext<Vec<u64>>
 {
-    let plaintext_modulus = pbs_params.message_modulus.0 * pbs_params.carry_modulus.0;
-    let delta = (1_u64 << 63) / plaintext_modulus;
-    let lwe_noise_distribution = pbs_params.lwe_noise_distribution;
-    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+    let (plaintext_modulus, lwe_noise_distribution,ciphertext_modulus) = match pbs_params {
+        FHEParameters::MultiBit(params) => (
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.message_modulus().0 * params.carry_modulus().0,
+            params.lwe_noise_distribution(),
+            params.ciphertext_modulus(),
+        ),
+    };
+
+
+    let mut delta = (1_u64 << 63) / plaintext_modulus;
+
+    if !padding{
+        delta *= 2;
+    }
 
     let plaintext1 = Plaintext(clear * delta);
     let ct: LweCiphertextOwned<u64> = allocate_and_encrypt_new_lwe_ciphertext(

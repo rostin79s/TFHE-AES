@@ -49,7 +49,7 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
         pfpksk_list.ciphertext_modulus(),
     );
 
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
 
     for (lwe_in, ggsw) in izip!(lwe_list_in.iter(), ggsw_list.as_mut_view().into_ggsw_iter()) {
         circuit_bootstrap_boolean(
@@ -65,7 +65,7 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
         ggsw.fill_with_forward_fourier(ggsw_res.as_view(), fft, stack);
     }
 
-    println!("circuit_bootstrap_boolean: {:?}", start.elapsed());
+    // println!("circuit_bootstrap_boolean: {:?}", start.elapsed());
 
 
     let number_of_luts = lwe_list_out.lwe_ciphertext_count().0;
@@ -73,7 +73,7 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
     let small_lut_size = big_lut_as_polynomial_list.polynomial_count().0 / number_of_luts;
 
 
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
     for (lut, lwe_out) in izip!(
         big_lut_as_polynomial_list.chunks_exact(small_lut_size),
         lwe_list_out.iter_mut(),
@@ -82,7 +82,7 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
         // break;
     }
 
-    println!("vertical_packing: {:?}", start.elapsed());
+    // println!("vertical_packing: {:?}", start.elapsed());
 
 
 
@@ -97,7 +97,6 @@ pub fn cpu_cbs_vp<
     lut: &PolynomialList<Vec<u64>>,
     output_count: usize,
     wopbs_small_bsk: &FourierLweBootstrapKey<BskCont>,
-    wopbs_large_lwe_secret_key: &LweSecretKey<Vec<u64>>,
     cbs_pfpksk: &LwePrivateFunctionalPackingKeyswitchKeyList<Vec<u64>>,
     fft: &FftView<'_>,
     buffers: &mut ComputationBuffers,
@@ -110,15 +109,15 @@ where
     let number_of_luts_and_output_vp_ciphertexts = LweCiphertextCount(output_count);
     let nb_bit_to_extract = bits.lwe_ciphertext_count().0;
     let lut_count = lut.polynomial_count().0;
+    let lwe_size = wopbs_small_bsk.output_lwe_dimension().to_lwe_size();
 
     let mut output_cbs_vp = LweCiphertextList::new(
         0u64,
-        wopbs_large_lwe_secret_key.lwe_dimension().to_lwe_size(),
+        lwe_size,
         number_of_luts_and_output_vp_ciphertexts,
         ciphertext_modulus,
     );
 
-    println!("Computing circuit bootstrap...");
     let buffer_size_req = 
     circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized_requirement::<
         u64,
@@ -139,7 +138,6 @@ where
 
     buffers.resize(buffer_size_req * 2);
 
-    let start = std::time::Instant::now();
     cpu_circuit_bootstrap_boolean_vertical_packing(
         lut,
         wopbs_small_bsk.as_view(),
@@ -162,7 +160,6 @@ where
     // *fft,
     // buffers.stack(),
     // );
-    println!("circuit_bootstrap_boolean_vertical_packing took: {:?}", start.elapsed());
     
     return output_cbs_vp;
 }
@@ -170,7 +167,7 @@ where
 
 pub fn cpu_generate_lut_vp(
     wopbs_params: &WopbsParameters,
-    vec_functions: &Vec<fn(u64) -> u64>,
+    vec_functions: &Vec<impl Fn(u64) -> u64>,
     output_count: usize,
     padding: bool
 
@@ -238,4 +235,4 @@ pub fn gen_lut_vp<F>(message_mod: usize, carry_mod: usize, poly_size: usize, nb_
             }
         }
         lut
-    }
+}

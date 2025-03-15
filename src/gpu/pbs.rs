@@ -134,16 +134,16 @@ pub fn cpu_gen_lut
 }
 
 pub fn cpu_pbs(
-    big_lwe_sk: &LweSecretKey<Vec<u64>>,
     fourier_bsk: &FourierLweBootstrapKey<ABox<[c64], ConstAlign<128>>>, 
     ct: &LweCiphertext<Vec<u64>>, 
     lut: &GlweCiphertext<Vec<u64>>
 ) -> LweCiphertext<Vec<u64>>{
 
     let ciphertext_modulus = ct.ciphertext_modulus();
+    let lwe_size = fourier_bsk.output_lwe_dimension().to_lwe_size();
     let mut ct_out = LweCiphertext::new(
         0u64,
-        big_lwe_sk.lwe_dimension().to_lwe_size(),
+        lwe_size,
         ciphertext_modulus,
     );  
 
@@ -158,16 +158,16 @@ pub fn cpu_pbs(
 
 pub fn cpu_multipbs
 (
-    big_lwe_sk: &LweSecretKey<Vec<u64>>,
     fourier_multibsk: &FourierLweMultiBitBootstrapKey<ABox<[c64], ConstAlign<128>>>, 
     ct: &LweCiphertext<Vec<u64>>, 
     lut: &GlweCiphertext<Vec<u64>>,
 ) -> LweCiphertext<Vec<u64>>
 {
     let ciphertext_modulus = ct.ciphertext_modulus();
+    let lwe_size = fourier_multibsk.output_lwe_dimension().to_lwe_size();
     let mut ct_out = LweCiphertext::new(
         0u64,
-        big_lwe_sk.lwe_dimension().to_lwe_size(),
+        lwe_size,
         ciphertext_modulus,
     );  
 
