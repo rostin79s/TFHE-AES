@@ -681,6 +681,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
+name = "rustversion"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eded382c5f5f786b989652c49544c4877d9f015cc22e145a5ea8ea66c2921cd2"
+
+[[package]]
 name = "serde"
 version = "1.0.217"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -723,6 +729,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
+name = "strum"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c77a8c5abcaf0f9ce05d62342b7d298c346515365c36b673df4ebe3ced01fde8"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -735,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "tfhe"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "aligned-vec",
  "bincode",
@@ -748,9 +776,10 @@ dependencies = [
  "rayon",
  "serde",
  "sha3",
+ "strum",
  "tfhe-csprng",
  "tfhe-cuda-backend",
- "tfhe-fft 0.8.0",
+ "tfhe-fft 0.9.0",
  "tfhe-ntt",
  "tfhe-versionable",
 ]
@@ -766,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "tfhe-cuda-backend"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -789,7 +818,7 @@ dependencies = [
 
 [[package]]
 name = "tfhe-fft"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "aligned-vec",
  "bytemuck",
@@ -802,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "tfhe-ntt"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "aligned-vec",
  "bytemuck",
@@ -811,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "tfhe-versionable"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "aligned-vec",
  "num-complex",
@@ -821,7 +850,7 @@ dependencies = [
 
 [[package]]
 name = "tfhe-versionable-derive"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "proc-macro2",
  "quote",

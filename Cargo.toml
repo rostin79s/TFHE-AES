@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tfhe = { path = "./tfhe-rs_custom/tfhe", features = ["shortint", "integer", "experimental", "noise-asserts", "gpu"] }
+tfhe = { path = "./tfhe-rs/tfhe", features = ["shortint", "integer", "experimental", "noise-asserts", "gpu"] }
 rand = "0.8"
 aes = "0.8.4"
 rayon = "1.7"

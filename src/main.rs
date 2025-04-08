@@ -7,7 +7,7 @@ use bloom::{bloom::*, bloom_client::bloom_gen_lwe, bloom_server::bloom_encrypted
 use gpu::{
     cbs_vp::*, cpu_decrypt, cpu_encrypt, cpu_gen_bsk, cpu_gen_ksk, cpu_gen_multibsk, cpu_gen_pksk, cpu_gen_wopbs_keys, cpu_lwelist_to_veclwe, cpu_params, cpu_seed, cpu_veclwe_to_lwelist, extract_bits::*, key_switch::*, pbs::*, FHEParameters
 };
-use tfhe::{core_crypto::{gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, lwe_ciphertext_add_assign, par_allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list, ComputationBuffers, ContiguousEntityContainer, Fft}}, integer::wopbs, shortint::{gen_keys, parameters::{v0_11::multi_bit::gaussian::p_fail_2_minus_64::ks_pbs::{V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_6_CARRY_1_KS_PBS_GAUSSIAN_2M64}, v1_0::{V1_0_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V1_0_PARAM_MULTI_BIT_GROUP_2_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M128}, LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64}}};
+use tfhe::{core_crypto::{gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, lwe_ciphertext_add_assign, par_allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list, ComputationBuffers, ContiguousEntityContainer, Fft}}, integer::wopbs, shortint::{gen_keys, parameters::{v0_11::multi_bit::gaussian::p_fail_2_minus_64::ks_pbs::{V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_6_CARRY_1_KS_PBS_GAUSSIAN_2M64}, v1_0::{V1_0_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, V1_0_PARAM_MULTI_BIT_GROUP_2_MESSAGE_1_CARRY_1_KS_PBS_GAUSSIAN_2M128}, LEGACY_WOPBS_PARAM_MESSAGE_2_CARRY_2_KS_PBS}}};
 
 
 
@@ -33,6 +33,21 @@ fn example(){
     let ct1_out = cpu_ksk(&ksk, &ct1_out);
 
 
+    // apply many lut
+
+
+    let f1 = |x: u64| x;
+    let f2 = |x: u64| x+1;
+    let f3 = |x: u64| x+2;
+    let f4 = |x: u64| 16;
+    let vec_functions = vec![f1, f2, f3, f4];
+    let many_lut = cpu_gen_many_lut(&FHEParameters::MultiBit(pbs_params), vec_functions);
+    let cts = cpu_many_pbs(&fourier_bsk, &ct1, &many_lut);
+
+    for ct in cts.iter(){
+        let dec = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &ct, true);
+        println!("many lut dec: {}", dec);
+    }
     // packing key switch
 
     let cts_count = 16;
@@ -169,30 +184,18 @@ fn example(){
         &mut buffers,
     );
 
-    // let out_bits_list = cpu_cbs_vp(
-    //     &wopbs_params,
-    //     &wopbs_bits,
-    //     &lut,
-    //     output_count,
-    //     &wopbs_fourier_bsk,
-    //     &wopbs_big_lwe_sk,
-    //     &cbs_pfpksk,
-    //     &fft,
-    //     &mut buffers,
-    // );
-
-    // let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
+    let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
 
 
 
-    // let mut out_integer = 0;
-    // for (index, bit_out) in vec_out_bits.iter().enumerate(){
-    //     let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &bit_out, false);
-    //     out_integer += dec << (vec_out_bits.len() - index - 1);
-    // }
+    let mut out_integer = 0;
+    for (index, bit_out) in vec_out_bits.iter().enumerate(){
+        let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &bit_out, false);
+        out_integer += dec << (vec_out_bits.len() - index - 1);
+    }
 
-    // println!("out_integer: {}", out_integer);
-    // assert_eq!(out_integer, f1(integer));
+    println!("out_integer: {}", out_integer);
+    assert_eq!(out_integer, f1(integer));
 
 
     // let vec_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_out_bits);

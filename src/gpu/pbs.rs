@@ -1,3 +1,6 @@
+use tfhe::shortint::ciphertext::MaxDegree;
+use tfhe::shortint::parameters::Degree;
+use tfhe::shortint::server_key::ManyLookupTableOwned;
 use tfhe::shortint::PBSParameters;
 
 use tfhe::core_crypto::prelude::GlweCiphertext;
@@ -88,6 +91,139 @@ pub fn cpu_gen_encrypted_lut
     return output_glwe;
 }
 
+
+pub fn cpu_gen_many_lut
+(
+    pbs_params: &FHEParameters,
+    vec_functions:  Vec<impl Fn(u64) -> u64>
+
+) -> ManyLookupTableOwned
+{
+    let (plaintext_modulus, polynomial_size, glwe_size, ciphertext_modulus) = match pbs_params {
+        FHEParameters::MultiBit(params) => (
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension.to_glwe_size(),
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension.to_glwe_size(),
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.message_modulus().0 * params.carry_modulus().0,
+            params.polynomial_size(),
+            params.glwe_dimension().to_glwe_size(),
+            params.ciphertext_modulus(),
+        ),
+    };
+
+    let delta = 
+        (1_u64 << 63) / plaintext_modulus as u64;
+
+
+    let mut acc = GlweCiphertext::new(
+        0,
+        glwe_size,
+        polynomial_size,
+        ciphertext_modulus,
+    );
+
+    let mut accumulator_view = acc.as_mut_view();
+
+    accumulator_view.get_mut_mask().as_mut().fill(0);
+
+    // Modulus of the msg contained in the msg bits and operations buffer
+    let modulus_sup =  plaintext_modulus as usize;
+
+    // N/(p/2) = size of each block
+    let box_size = polynomial_size.0 / modulus_sup;
+
+    let mut body = accumulator_view.get_mut_body();
+    let accumulator_u64 = body.as_mut();
+    // Clear in case we don't fill the full accumulator so that the remainder part is 0
+    accumulator_u64.as_mut().fill(0u64);
+
+    let fn_counts = vec_functions.len();
+
+    assert!(
+        fn_counts <= modulus_sup / 2,
+        "Cannot generate many lut accumulator for {fn_counts} functions, maximum possible is {}",
+        modulus_sup / 2
+    );
+
+    // Max valid degree for a ciphertext when using the LUT we generate
+    let input_max_degree = MaxDegree::new((modulus_sup / fn_counts - 1) as u64);
+
+    let mut per_function_output_degree = vec![Degree::new(0); fn_counts];
+
+    // If MaxDegree == 1, we can have two input values 0 and 1, so we need MaxDegree + 1 boxes
+    let sample_extraction_stride = (input_max_degree.get() as usize + 1) * box_size;
+
+    for ((function_sub_lut, output_degree), function) in accumulator_u64
+        .chunks_mut(sample_extraction_stride)
+        .zip(per_function_output_degree.iter_mut())
+        .zip(vec_functions)
+    {
+        for (msg_value, sub_lut_box) in function_sub_lut.chunks_exact_mut(box_size).enumerate() {
+            let msg_value = msg_value as u64;
+            let function_eval = function(msg_value);
+            *output_degree = Degree::new((function_eval).max(output_degree.get()));
+            sub_lut_box.fill(function_eval* delta);
+        }
+    }
+
+    let half_box_size = box_size / 2;
+
+    // Negate the first half_box_size coefficients
+    for a_i in accumulator_u64[0..half_box_size].iter_mut() {
+        *a_i = (*a_i).wrapping_neg();
+    }
+
+    // Rotate the accumulator
+    accumulator_u64.rotate_left(half_box_size);
+
+    ManyLookupTableOwned {
+        acc,
+        input_max_degree,
+        sample_extraction_stride,
+        per_function_output_degree,
+    }
+}
+
+pub fn cpu_many_pbs
+(
+    fourier_bsk: &FourierLweBootstrapKey<ABox<[c64], ConstAlign<128>>>,
+    ct: &LweCiphertext<Vec<u64>>,
+    lut: &ManyLookupTableOwned,
+) -> Vec<LweCiphertext<Vec<u64>>>
+{
+    let mut acc = lut.acc.clone();
+    blind_rotate_assign(&ct, &mut acc, &fourier_bsk);
+
+    // The accumulator has been rotated, we can now proceed with the various sample extractions
+    let function_count = lut.function_count();
+    let mut outputs = Vec::with_capacity(function_count);
+    let ciphertext_modulus = ct.ciphertext_modulus();
+    let lwe_size = fourier_bsk.output_lwe_dimension().to_lwe_size();
+
+    for (fn_idx, output_degree) in lut.per_function_output_degree.iter().enumerate() {
+        let monomial_degree = MonomialDegree(fn_idx * lut.sample_extraction_stride);
+        let mut output_shortint_ct = LweCiphertext::new(0, lwe_size, ciphertext_modulus);
+
+        extract_lwe_sample_from_glwe_ciphertext(
+            &acc,
+            &mut output_shortint_ct,
+            monomial_degree,
+        );
+        outputs.push(output_shortint_ct);
+    }
+
+    outputs
+
+}
 
 pub fn cpu_gen_lut
 (
@@ -183,7 +319,7 @@ pub fn cpu_multipbs
 }
 
 pub fn gpu_pbs(streams: &CudaStreams, bsk: &LweBootstrapKey<Vec<u64>>, vec_cts: &Vec<LweCiphertext<Vec<u64>>>, vec_luts: &Vec<GlweCiphertext<Vec<u64>>> ) -> CudaLweCiphertextList<u64>{
-    let cuda_bsk = CudaLweBootstrapKey::from_lwe_bootstrap_key(&bsk, &streams);
+    let cuda_bsk = CudaLweBootstrapKey::from_lwe_bootstrap_key(&bsk, None, &streams);
 
 
     let gpu_index = streams.gpu_indexes[0].get();
