@@ -131,7 +131,7 @@ fn example(){
     let wopbs_bits = cpu_veclwe_to_lwelist(&vec_wopbs_bits);
 
 
-    // circuit bootstrapping
+    // // circuit bootstrapping
 
     let fft = Fft::new(wopbs_bsk.polynomial_size());
     let fft = fft.as_view();
@@ -147,7 +147,7 @@ fn example(){
 
     
     let cont = lut.clone().into_container();
-    println!("cont: {:?}", cont);
+    // println!("cont: {:?}", cont);
     let cont_size = cont.len();
     println!("cont size: {}", cont_size);
     let poly_count = lut.polynomial_count().0;
@@ -181,18 +181,18 @@ fn example(){
     //     &mut buffers,
     // );
 
-    let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
+    // let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
 
 
 
-    let mut out_integer = 0;
-    for (index, bit_out) in vec_out_bits.iter().enumerate(){
-        let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &bit_out, false);
-        out_integer += dec << (vec_out_bits.len() - index - 1);
-    }
+    // let mut out_integer = 0;
+    // for (index, bit_out) in vec_out_bits.iter().enumerate(){
+    //     let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &bit_out, false);
+    //     out_integer += dec << (vec_out_bits.len() - index - 1);
+    // }
 
-    println!("out_integer: {}", out_integer);
-    assert_eq!(out_integer, f1(integer));
+    // println!("out_integer: {}", out_integer);
+    // assert_eq!(out_integer, f1(integer));
 
 
     // let vec_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_out_bits);
@@ -272,8 +272,10 @@ fn example(){
 
 
     // GPU --------------------------------
+
+
     // let mut vec_cts = vec![ct1.clone()];
-    // let size = 128;
+    // let size = 10000;
     // for _ in 0..size{
     //     vec_cts.push(ct1.clone());
     // }
@@ -286,8 +288,8 @@ fn example(){
     // // let cuda_out_cts = gpu_pbs(&streams, &bsk, &vec_cts, &vec_luts);
     // let cuda_out_cts = gpu_multi_pbs(&streams, &multibsk, &vec_cts, &vec_luts);
 
-    // drop(bsk);
 
+    // let ciphertext_modulus = pbs_params.ciphertext_modulus;
     // let gpu_vec_lwe_out = cuda_out_cts.to_lwe_ciphertext_list(&streams);
     // let gpu_vec_out = gpu_vec_lwe_out.chunks(vec_cts[0].lwe_size().0).map(|lwe_out| {
     //     let temp = lwe_out.into_container().to_vec();
@@ -338,14 +340,14 @@ fn example(){
 
 
 fn bloom(){
-    let prob_failure = 1e-3; // False positive rate
-    let db_size = 2_usize.pow(13); // 2^20 database size
+    let prob_failure = 1e-1; // False positive rate
+    let db_size = 2_usize.pow(3); // 2^20 database size
 
     let (m, h) = bloom_params(prob_failure, db_size);
     println!("Computed Bloom Filter Size (m): {}", m);
     println!("Computed Number of Hash Functions (h): {}", h);
 
-    let m = 1 << 16;
+    let m = 1 << 8;
 
     let (hash_seeds, bloom_filter, values) = bloom_create(m, h, db_size);
     println!("Generated {} hash functions and created Bloom filter of size {}", hash_seeds.len(), bloom_filter.len());
@@ -371,7 +373,7 @@ fn bloom(){
     let (ksk_wopbs_large_to_wopbs_small, ksk_pbs_large_to_wopbs_large, ksk_wopbs_large_to_pbs_small, cbs_pfpksk) = cpu_gen_wopbs_keys(&pbs_params, &small_lwe_sk, &big_lwe_sk, &wopbs_params, &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &wopbs_big_lwe_sk, &wopbs_glwe_secret_key);
 
 
-    let wopbs_size = 16;
+    let wopbs_size = 4;
     
     let vec_lwe = bloom_gen_lwe(&wopbs_params, &FHEParameters::MultiBit(pbs_params), &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &mut encryption_generator, &small_lwe_sk, &indices, wopbs_size, m);
     
@@ -396,10 +398,10 @@ fn bloom(){
 
 
 fn main() {
-    // loop{
-    //     example();
-    //     break;
-    // }
+    loop{
+        example();
+        break;
+    }
 
-    bloom();
+    // bloom();
 }

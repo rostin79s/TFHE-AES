@@ -314,8 +314,11 @@ pub fn circuit_bootstrap_boolean<Scalar: UnsignedTorus + CastInto<usize>>(
     let mut lwe_out_bs_buffer =
         LweCiphertext::from_container(&mut *lwe_out_bs_buffer_data, lwe_in.ciphertext_modulus());
 
+    let size = ggsw_out.iter_mut().len();
+    println!("size: {}", size);
     for (output_index, mut ggsw_level_matrix) in ggsw_out.iter_mut().enumerate() {
         let decomposition_level = DecompositionLevel(level_cbs.0 - output_index);
+        let start = std::time::Instant::now();
         homomorphic_shift_boolean(
             fourier_bsk,
             lwe_out_bs_buffer.as_mut_view(),
@@ -326,7 +329,8 @@ pub fn circuit_bootstrap_boolean<Scalar: UnsignedTorus + CastInto<usize>>(
             fft,
             stack,
         );
-
+        println!("homomorphic_shift_boolean: {:?}", start.elapsed());
+        println!("output_index: {}", output_index);
         for (pfpksk, mut glwe_out) in pfpksk_list
             .iter()
             .zip(ggsw_level_matrix.as_mut_glwe_list().iter_mut())
@@ -336,6 +340,7 @@ pub fn circuit_bootstrap_boolean<Scalar: UnsignedTorus + CastInto<usize>>(
                 &mut glwe_out,
                 &lwe_out_bs_buffer,
             );
+            println!("pfpk");
         }
     }
 }

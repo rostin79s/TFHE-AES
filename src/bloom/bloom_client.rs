@@ -38,6 +38,7 @@ pub fn bloom_gen_lwe
         }
         while q > 0{
             let upper = q % plaintext_modulus as usize;
+            println!("upper: {}", upper);
             q = q / plaintext_modulus as usize;
             let lwe = cpu_encrypt(pbs_params, encryption_generator, small_lwe_sk, upper as u64, true);
             lwe_cts_index.push(lwe);

@@ -34,10 +34,11 @@ pub fn bloom_encrypted_query
         FHEParameters::PBS(params) => (params.message_modulus().0 * params.carry_modulus().0) as usize,
         FHEParameters::Wopbs(_) => panic!("Invalid parameter: Wopbs is not supported"),
     };
-    let output_count = 1;
     let m = bloom.len();
     let wopbs_chunk = 1 << wopbs_size;
     let number_of_functions = (m-1) / wopbs_chunk + 1;
+    println!("number_of_functions: {}", number_of_functions);
+    let output_count = number_of_functions;
 
     let mut vec_functions = Vec::new();
     for i in 0..number_of_functions{
