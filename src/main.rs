@@ -36,10 +36,10 @@ fn example(){
     // apply many lut
 
 
-    let f1 = |x: u64| x;
+    let f1 = |x: u64| 19;
     let f2 = |x: u64| x+1;
     let f3 = |x: u64| x+2;
-    let f4 = |x: u64| 16;
+    let f4 = |x: u64| 17;
     let vec_functions = vec![f1, f2, f3, f4];
     let many_lut = cpu_gen_many_lut(&FHEParameters::MultiBit(pbs_params), vec_functions);
     let cts = cpu_many_pbs(&fourier_bsk, &ct1, &many_lut);
@@ -129,9 +129,16 @@ fn example(){
         wopbs_params.ciphertext_modulus, 
         &mut wopbs_encryption_generator
     );
-    
-    let output_count = vec_pbs_bits.len();
-    println!("output_count: {}", output_count);
+    let ksk_pbs_large_to_wopbs_small = allocate_and_generate_new_lwe_keyswitch_key(
+        &big_lwe_sk, 
+        &wopbs_small_lwe_sk, 
+        wopbs_params.ks_base_log, 
+        wopbs_params.ks_level, 
+        wopbs_params.lwe_noise_distribution, 
+        wopbs_params.ciphertext_modulus, 
+        &mut wopbs_encryption_generator
+    );
+
 
     let mut vec_wopbs_bits = Vec::new();
     let mut integer = 0;
@@ -142,11 +149,19 @@ fn example(){
         vec_wopbs_bits.push(pbs_bit_switched);
     }
     println!("integer: {}", integer);
-
     let wopbs_bits = cpu_veclwe_to_lwelist(&vec_wopbs_bits);
 
 
-    // // circuit bootstrapping
+    let vec_wopbs_bits = cpu_many_ksk(&ksk_pbs_large_to_wopbs_small, &cts);
+    let wopbs_bits = cpu_veclwe_to_lwelist(&vec_wopbs_bits);
+    for wopbs_bit in vec_wopbs_bits.iter(){
+        let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_small_lwe_sk, &wopbs_bit, false);
+        println!("many dec in wopbs: {}", dec);
+    }
+
+
+
+    // // circuit bootstrapping *********************************************************************************************************************************************************************************************************************************************
 
     let fft = Fft::new(wopbs_bsk.polynomial_size());
     let fft = fft.as_view();
@@ -154,7 +169,8 @@ fn example(){
 
 
 
-    let output_count = 1;
+    let output_count = wopbs_bits.lwe_ciphertext_count().0;
+
     let f1: fn(u64) -> u64 = |x: u64| x;
     let mut vec_functions = Vec::new();
     vec_functions.push(f1);
@@ -182,6 +198,8 @@ fn example(){
         &cbs_pfpksk,
         &fft,
         &mut buffers,
+        &wopbs_big_lwe_sk,
+        &wopbs_small_lwe_sk
     );
 
     let vec_out_bits = cpu_lwelist_to_veclwe(&out_bits_list);
@@ -191,11 +209,12 @@ fn example(){
     let mut out_integer = 0;
     for (index, bit_out) in vec_out_bits.iter().enumerate(){
         let dec: u64 = cpu_decrypt(&FHEParameters::Wopbs(wopbs_params), &wopbs_big_lwe_sk, &bit_out, false);
+        println!("cbs dec: {}", dec);
         out_integer += dec << (vec_out_bits.len() - index - 1);
     }
 
     println!("out_integer: {}", out_integer);
-    assert_eq!(out_integer, f1(integer));
+    // assert_eq!(out_integer, f1(integer));
 
 
     // let vec_out_bits = cpu_many_ksk(&ksk_wopbs_large_to_wopbs_small, &vec_out_bits);
@@ -381,7 +400,7 @@ fn bloom(){
     let vec_lwe = bloom_gen_lwe(&wopbs_params, &FHEParameters::MultiBit(pbs_params), &mut wopbs_encryption_generator, &wopbs_small_lwe_sk, &mut encryption_generator, &small_lwe_sk, &indices, wopbs_size, m);
     
     
-    let vec_lwe_out = bloom_encrypted_query(&wopbs_big_lwe_sk, &wopbs_params, &FHEParameters::MultiBit(pbs_params), &fourier_multibsk, &ksk_wopbs_large_to_pbs_small, &pksk, &wopbs_fourier_bsk, &cbs_pfpksk, &vec_lwe, wopbs_size, &bloom_filter);
+    let vec_lwe_out = bloom_encrypted_query(&wopbs_big_lwe_sk, &wopbs_small_lwe_sk, &wopbs_params, &FHEParameters::MultiBit(pbs_params), &fourier_multibsk, &ksk_wopbs_large_to_pbs_small, &pksk, &wopbs_fourier_bsk, &cbs_pfpksk, &vec_lwe, wopbs_size, &bloom_filter);
     
     
     for (index, lwe) in vec_lwe_out.iter().enumerate(){

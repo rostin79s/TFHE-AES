@@ -161,6 +161,7 @@ pub fn cpu_gen_many_lut
 
     // If MaxDegree == 1, we can have two input values 0 and 1, so we need MaxDegree + 1 boxes
     let sample_extraction_stride = (input_max_degree.get() as usize + 1) * box_size;
+    println!("sample extraction stride: {:?}", sample_extraction_stride);
 
     for ((function_sub_lut, output_degree), function) in accumulator_u64
         .chunks_mut(sample_extraction_stride)
@@ -211,6 +212,7 @@ pub fn cpu_many_pbs
 
     for (fn_idx, output_degree) in lut.per_function_output_degree.iter().enumerate() {
         let monomial_degree = MonomialDegree(fn_idx * lut.sample_extraction_stride);
+        println!("monomial degree: {:?}", monomial_degree.0);
         let mut output_shortint_ct = LweCiphertext::new(0, lwe_size, ciphertext_modulus);
 
         extract_lwe_sample_from_glwe_ciphertext(
@@ -408,4 +410,86 @@ pub fn gpu_multi_pbs(streams: &CudaStreams, bsk: &LweMultiBitBootstrapKey<Vec<u6
     cuda_multi_bit_programmable_bootstrap_lwe_ciphertext(&cuda_cts, &mut cuda_out_cts, &cuda_luts, &lut_indexes, &output_indexes, &input_indexes, &cuda_bsk, &streams);
     println!("GPU multi bit PBS took: {:?}", start.elapsed());
     return cuda_out_cts;
+}
+
+
+/// Homomorphic shift for LWE without padding bit
+///
+/// Starts by shifting the message bit at bit #delta_log to the padding bit and then shifts it to
+/// the right by base_log * level.
+pub fn cpu_bootstrap_boolean_no_padding<Scalar: UnsignedTorus + CastInto<usize>>(
+    fourier_bsk: FourierLweBootstrapKeyView<'_>,
+    mut lwe_out: LweCiphertext<&mut [Scalar]>,
+    lwe_in: LweCiphertext<&[Scalar]>,
+    level_count_cbs: DecompositionLevel,
+    base_log_cbs: DecompositionBaseLog,
+    delta_log: DeltaLog,
+    fft: FftView<'_>,
+    stack: &mut PodStack,
+) {
+    debug_assert!(lwe_out.ciphertext_modulus() == lwe_in.ciphertext_modulus());
+    debug_assert!(
+        lwe_in.ciphertext_modulus().is_native_modulus(),
+        "This operation currently only supports native moduli"
+    );
+
+    let ciphertext_n_bits = Scalar::BITS;
+    let lwe_in_size = lwe_in.lwe_size();
+    let polynomial_size = fourier_bsk.polynomial_size();
+    let ciphertext_moudulus = lwe_out.ciphertext_modulus();
+
+    let (lwe_left_shift_buffer_data, stack) =
+        stack.make_aligned_with(lwe_in_size.0, CACHELINE_ALIGN, |_| Scalar::ZERO);
+    let mut lwe_left_shift_buffer = LweCiphertext::from_container(
+        &mut *lwe_left_shift_buffer_data,
+        lwe_in.ciphertext_modulus(),
+    );
+    // Shift message LSB on padding bit, at this point we expect to have messages with only 1 bit
+    // of information
+    lwe_ciphertext_cleartext_mul(
+        &mut lwe_left_shift_buffer,
+        &lwe_in,
+        Cleartext(Scalar::ONE << (ciphertext_n_bits - delta_log.0 - 1)),
+    );
+
+    // Add q/4 to center the error while computing a negacyclic LUT
+    // let shift_buffer_body = lwe_left_shift_buffer.get_mut_body();
+    // *shift_buffer_body.data =
+    //     (*shift_buffer_body.data).wrapping_add(Scalar::ONE << (ciphertext_n_bits - 2));
+
+    let (pbs_accumulator_data, stack) = stack.make_aligned_with(
+        polynomial_size.0 * fourier_bsk.glwe_size().0,
+        CACHELINE_ALIGN,
+        |_| Scalar::ZERO,
+    );
+    let mut pbs_accumulator = GlweCiphertextMutView::from_container(
+        &mut *pbs_accumulator_data,
+        polynomial_size,
+        ciphertext_moudulus,
+    );
+
+    // Fill lut (equivalent to trivial encryption as mask is 0s)
+    // The LUT is filled with -alpha in each coefficient where
+    // alpha = 2^{log(q) - 1 - base_log * level}
+    pbs_accumulator.get_mut_body().as_mut().fill(
+        Scalar::ZERO.wrapping_sub(
+            Scalar::ONE << (ciphertext_n_bits - 2),
+        ),
+    );
+
+    // Applying a negacyclic LUT on a ciphertext with one bit of message in the MSB and no bit
+    // of padding
+    fourier_bsk.bootstrap(
+        lwe_out.as_mut_view(),
+        lwe_left_shift_buffer.as_view(),
+        pbs_accumulator.as_view(),
+        fft,
+        stack,
+    );
+
+    // Add alpha where alpha = 2^{log(q) - 1 - base_log * level}
+    // To end up with an encryption of 0 if the message bit was 0 and 1 in the other case
+    let out_body = lwe_out.get_mut_body();
+    *out_body.data = (*out_body.data)
+        .wrapping_add(Scalar::ONE << (ciphertext_n_bits - 2));
 }

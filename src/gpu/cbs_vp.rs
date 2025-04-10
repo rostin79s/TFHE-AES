@@ -1,6 +1,86 @@
 use tfhe::shortint::WopbsParameters;
+use tfhe::core_crypto::commons::math::decomposition::DecompositionLevel;
+use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::homomorphic_shift_boolean;
 use super::*;
 use crate::izip;
+
+pub fn cpu_circuit_bootstrap_boolean(
+    fourier_bsk: FourierLweBootstrapKeyView<'_>,
+    lwe_in: LweCiphertext<&[u64]>,
+    mut ggsw_out: GgswCiphertext<&mut [u64]>,
+    delta_log: DeltaLog,
+    pfpksk_list: LwePrivateFunctionalPackingKeyswitchKeyList<&[u64]>,
+    fft: FftView<'_>,
+    stack: &mut PodStack,
+    wopbs_big_lwe_sk: &LweSecretKey<Vec<u64>>,
+    wopbs_small_lwe_sk: &LweSecretKey<Vec<u64>>,
+    wopbs_params: &WopbsParameters,
+) {
+    let level_cbs = ggsw_out.decomposition_level_count();
+    let base_log_cbs = ggsw_out.decomposition_base_log();
+    let fourier_bsk_output_lwe_dimension = fourier_bsk.output_lwe_dimension();
+
+    // Output for every bootstrapping
+    let (lwe_out_bs_buffer_data, stack) = stack.make_aligned_with(
+        fourier_bsk_output_lwe_dimension.to_lwe_size().0,
+        CACHELINE_ALIGN,
+        |_| u64::ZERO,
+    );
+    let mut lwe_out_bs_buffer: LweCiphertext<Vec<u64>> =
+        LweCiphertext::from_container((&mut *lwe_out_bs_buffer_data).to_vec(), lwe_in.ciphertext_modulus());
+
+    for (output_index, mut ggsw_level_matrix) in ggsw_out.iter_mut().enumerate() {
+        let decomposition_level = DecompositionLevel(level_cbs.0 - output_index);
+        let start = std::time::Instant::now();
+        
+        let decryption_size = 0;
+        let plaintext_modulus = 2_u64.pow(decryption_size);
+        let mut delta = (1_u64 << 63) / plaintext_modulus;
+        let mut decomp = plaintext_modulus.ilog2() + 1;
+        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_sk, &lwe_in);
+        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
+        let sb_dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
+
+
+        println!("sb_dec before: {:?}", sb_dec);
+        homomorphic_shift_boolean(
+            fourier_bsk,
+            lwe_out_bs_buffer.as_mut_view(),
+            lwe_in.as_view(),
+            decomposition_level,
+            base_log_cbs,
+            delta_log,
+            fft,
+            stack,
+        );
+        // let sb_dec = cpu_decrypt(&FHEParameters::Wopbs(*wopbs_params), wopbs_big_lwe_sk, &lwe_out_bs_buffer, false);
+
+        let plaintext_modulus = 2_u64.pow(decryption_size);
+        let mut delta = (1_u64 << 63) / plaintext_modulus;
+        let mut decomp = plaintext_modulus.ilog2() + 1;
+        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_big_lwe_sk, &lwe_out_bs_buffer);
+        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
+        let sb_dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
+
+
+        println!("sb_dec after: {:?}", sb_dec);
+        let n_out = lwe_out_bs_buffer.lwe_size().0;
+        // println!("n_out: {}", n_out);
+        // println!("homomorphic_shift_boolean: {:?}", start.elapsed());
+        for (pfpksk, mut glwe_out) in pfpksk_list
+            .iter()
+            .zip(ggsw_level_matrix.as_mut_glwe_list().iter_mut())
+        {
+            let start = std::time::Instant::now();
+            private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext(
+                &pfpksk,
+                &mut glwe_out,
+                &lwe_out_bs_buffer,
+            );
+            // println!("private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext: {:?}", start.elapsed());
+        }
+    }
+}
 
 pub fn cpu_circuit_bootstrap_boolean_vertical_packing
 (
@@ -13,6 +93,9 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
     base_log_cbs: DecompositionBaseLog,
     fft: FftView<'_>,
     stack: &mut PodStack,
+    wopbs_big_lwe_sk: &LweSecretKey<Vec<u64>>,
+    wopbs_small_lwe_sk: &LweSecretKey<Vec<u64>>,
+    wopbs_params: &WopbsParameters,
 ) 
 {
 
@@ -52,7 +135,7 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
     let start = std::time::Instant::now();
 
     for (lwe_in, ggsw) in izip!(lwe_list_in.iter(), ggsw_list.as_mut_view().into_ggsw_iter()) {
-        circuit_bootstrap_boolean(
+        cpu_circuit_bootstrap_boolean(
             fourier_bsk,
             lwe_in,
             ggsw_res.as_mut_view(),
@@ -60,6 +143,9 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
             pfpksk_list.as_view(),
             fft,
             stack,
+            wopbs_big_lwe_sk,
+            wopbs_small_lwe_sk,
+            wopbs_params,
         );
 
         ggsw.fill_with_forward_fourier(ggsw_res.as_view(), fft, stack);
@@ -100,6 +186,8 @@ pub fn cpu_cbs_vp<
     cbs_pfpksk: &LwePrivateFunctionalPackingKeyswitchKeyList<Vec<u64>>,
     fft: &FftView<'_>,
     buffers: &mut ComputationBuffers,
+    wopbs_big_lwe_sk: &LweSecretKey<Vec<u64>>,
+    wopbs_small_lwe_sk: &LweSecretKey<Vec<u64>>,
 ) -> LweCiphertextList<Vec<u64>>
 where 
     BskCont: Container<Element = c64>,
@@ -148,18 +236,10 @@ where
         wopbs_parameters.cbs_base_log,
         *fft,
         buffers.stack(),
+        wopbs_big_lwe_sk,
+        wopbs_small_lwe_sk,
+        wopbs_parameters,
         );
-    // circuit_bootstrap_boolean_vertical_packing_lwe_ciphertext_list_mem_optimized(
-    // &bits,
-    // &mut output_cbs_vp,
-    // &lut,
-    // &wopbs_small_bsk,
-    // &cbs_pfpksk,
-    // wopbs_parameters.cbs_base_log,
-    // wopbs_parameters.cbs_level,
-    // *fft,
-    // buffers.stack(),
-    // );
     
     return output_cbs_vp;
 }

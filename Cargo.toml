@@ -12,3 +12,6 @@ clap = { version = "4.5.28", features = ["derive"] }
 dyn-stack = "0.11.0"
 aligned-vec = "0.6.1"
 tfhe-fft = "0.7.0"
+
+[profile.release]
+incremental = true

@@ -17,6 +17,7 @@ use crate::gpu::{cbs_vp::{cpu_cbs_vp, cpu_generate_lut_vp}, cpu_decrypt, cpu_lwe
 pub fn bloom_encrypted_query
 (
     wopbs_big_lwe_sk: &LweSecretKey<Vec<u64>>,
+    wopbs_small_lwe_sk: &LweSecretKey<Vec<u64>>,
     wopbs_params: &WopbsParameters,
     pbs_params: &FHEParameters,
     fourier_multibsk: &FourierLweMultiBitBootstrapKey<ABox<[c64], ConstAlign<128>>>,
@@ -76,7 +77,7 @@ pub fn bloom_encrypted_query
         let fft = Fft::new(wopbs_fourier_bsk.polynomial_size());
         let fft = fft.as_view();
         let mut buffers = ComputationBuffers::new();
-        let list_bits_out = cpu_cbs_vp(&wopbs_params, &list_bits, &vp_lut, output_count, wopbs_fourier_bsk, cbs_pfpksk, &fft, &mut buffers);
+        let list_bits_out = cpu_cbs_vp(&wopbs_params, &list_bits, &vp_lut, output_count, wopbs_fourier_bsk, cbs_pfpksk, &fft, &mut buffers, wopbs_big_lwe_sk, wopbs_small_lwe_sk);
         let mut vec_bits_out = cpu_lwelist_to_veclwe(&list_bits_out);
         for bit_out in vec_bits_out.clone(){
             let dec = cpu_decrypt(&FHEParameters::Wopbs(*wopbs_params), wopbs_big_lwe_sk, &bit_out, true);

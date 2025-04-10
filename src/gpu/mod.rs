@@ -39,7 +39,7 @@ use tfhe::core_crypto::algorithms::lwe_bootstrap_key_generation::par_allocate_an
 use tfhe::core_crypto::gpu::cuda_multi_bit_programmable_bootstrap_lwe_ciphertext;
 
 
-
+use tfhe::core_crypto::commons::math::decomposition::*;
 use tfhe::core_crypto::commons::math::random::BoundedDistribution;
 use tfhe::core_crypto::gpu::glwe_ciphertext_list::CudaGlweCiphertextList;
 use tfhe::integer::backward_compatibility::ciphertext;
@@ -56,6 +56,7 @@ use tfhe_fft::c64;
 
 use tfhe::core_crypto::gpu::lwe_multi_bit_bootstrap_key::CudaLweMultiBitBootstrapKey;
 use aligned_vec::CACHELINE_ALIGN;
+
 
 pub enum FHEParameters{
     MultiBit(MultiBitPBSParameters),
@@ -92,11 +93,12 @@ WopbsParameters {
     encryption_key_choice: EncryptionKeyChoice::Big,
 };
 
+// - 2 :   1, 11,  797,    4,  9,     8,  2,     2,  9,     2, 16,   3786, 2.8e-39
 pub const EXP: WopbsParameters =
 WopbsParameters {
-    lwe_dimension: LweDimension(659),
-    glwe_dimension: GlweDimension(2),
-    polynomial_size: PolynomialSize(1024),
+    lwe_dimension: LweDimension(797),
+    glwe_dimension: GlweDimension(1),
+    polynomial_size: PolynomialSize(2048),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.0517578125e-05,
     )),
@@ -105,15 +107,15 @@ WopbsParameters {
     )),
     pbs_base_log: DecompositionBaseLog(9),
     pbs_level: DecompositionLevelCount(4),
-    ks_level: DecompositionLevelCount(6),
+    ks_level: DecompositionLevelCount(8),
     ks_base_log: DecompositionBaseLog(2),
     pfks_level: DecompositionLevelCount(2),
     pfks_base_log: DecompositionBaseLog(16),
     pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.162026630747649e-16,
     )),
-    cbs_level: DecompositionLevelCount(3),
-    cbs_base_log: DecompositionBaseLog(7),
+    cbs_level: DecompositionLevelCount(2),
+    cbs_base_log: DecompositionBaseLog(9),
     message_modulus: MessageModulus(2),
     carry_modulus: CarryModulus(1),
     ciphertext_modulus: CiphertextModulus::new_native(),
@@ -150,7 +152,7 @@ WopbsParameters {
 
 
 pub fn cpu_params() -> WopbsParameters{
-    return PARAM_OPT;
+    return EXP;
 }
 
 pub fn cpu_seed(
