@@ -2,9 +2,10 @@ pub mod key_switch;
 pub mod pbs;
 pub mod extract_bits;
 pub mod cbs_vp;
+pub mod pbsmany;
 
 
-use aligned_vec::{ABox, ConstAlign};
+
 use tfhe::{
     core_crypto::{
         backward_compatibility::commons::ciphertext_modulus, gpu::{
@@ -51,11 +52,59 @@ use tfhe::core_crypto::fft_impl::fft64::crypto::bootstrap::FourierLweBootstrapKe
 use tfhe::core_crypto::fft_impl::fft64::crypto::ggsw::FourierGgswCiphertextListMutView;
 use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::circuit_bootstrap_boolean;
 use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::vertical_packing;
-use dyn_stack::PodStack;
-use tfhe_fft::c64;
 
 use tfhe::core_crypto::gpu::lwe_multi_bit_bootstrap_key::CudaLweMultiBitBootstrapKey;
+use tfhe::shortint::ciphertext::MaxDegree;
+use tfhe::shortint::parameters::Degree;
+use tfhe::shortint::server_key::ManyLookupTableOwned;
+
+use tfhe::core_crypto::prelude::GlweCiphertext;
+use tfhe::core_crypto::prelude::Numeric;
+use tfhe::core_crypto::prelude::keyswitch_lwe_ciphertext_into_glwe_ciphertext;
+use tfhe::core_crypto::prelude::ContiguousEntityContainerMut;
+use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_mul_assign;
+use tfhe::core_crypto::prelude::MonomialDegree;
+use tfhe::core_crypto::prelude::slice_algorithms::slice_wrapping_add_assign;
+use tfhe::core_crypto::prelude::trivially_encrypt_lwe_ciphertext;
+use tfhe::core_crypto::prelude::Plaintext;
+use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign;
+
+use tfhe::core_crypto::fft_impl::fft64::math::fft::{Fft, FourierPolynomialList};
+use tfhe::conformance::ParameterSetConformant;
+use tfhe::core_crypto::algorithms::extract_lwe_sample_from_glwe_ciphertext;
+use tfhe::core_crypto::algorithms::polynomial_algorithms::*;
+use tfhe::core_crypto::backward_compatibility::fft_impl::FourierLweBootstrapKeyVersions;
+use tfhe::core_crypto::commons::math::decomposition::SignedDecomposer;
+use tfhe::core_crypto::commons::math::torus::UnsignedTorus;
+use tfhe::core_crypto::commons::numeric::{CastInto, UnsignedInteger};
+use tfhe::core_crypto::commons::parameters::{
+    DecompositionBaseLog, DecompositionLevelCount, GlweSize,
+    PolynomialSize,
+};
+use tfhe::core_crypto::commons::traits::{
+    Container, ContiguousEntityContainer, IntoContainerOwned, Split,
+};
+use tfhe::core_crypto::entities::*;
+use tfhe::core_crypto::fft_impl::common::{pbs_modulus_switch, FourierBootstrapKey};
+use tfhe::core_crypto::fft_impl::fft64::math::fft::par_convert_polynomials_list_to_fourier;
+use tfhe::core_crypto::prelude::{CiphertextCount, CiphertextModulus, ContainerMut};
+
+use tfhe::core_crypto::algorithms::polynomial_algorithms::*;
+use tfhe::core_crypto::commons::parameters::*;
+use tfhe::core_crypto::entities::*;
+use tfhe::core_crypto::fft_impl::fft64::crypto::ggsw::*;
+// use tfhe::core_crypto::commons::utils::izip;
+use tfhe::core_crypto::entities::*;
+use tfhe::core_crypto::fft_impl::fft64::crypto::ggsw::add_external_product_assign;
+
+use aligned_vec::ABox;
+use tfhe_fft::c64;
+use aligned_vec::ConstAlign;
+use dyn_stack::PodStack;
 use aligned_vec::CACHELINE_ALIGN;
+
+
+use tfhe::core_crypto::commons::utils::izip;
 
 
 pub enum FHEParameters{
@@ -430,7 +479,8 @@ pub fn cpu_encrypt
     if !padding{
         delta *= 2;
     }
-
+    let delta_log = delta.ilog2();
+    println!("delta_log: {}", delta_log);
     let plaintext1 = Plaintext(clear * delta);
     let ct: LweCiphertextOwned<u64> = allocate_and_encrypt_new_lwe_ciphertext(
         &small_lwe_sk,

@@ -1,8 +1,10 @@
+use dyn_stack::PodStack;
 use tfhe::shortint::WopbsParameters;
 use tfhe::core_crypto::commons::math::decomposition::DecompositionLevel;
 use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::homomorphic_shift_boolean;
+use aligned_vec::CACHELINE_ALIGN;
+use tfhe_fft::c64;
 use super::*;
-use crate::izip;
 
 pub fn cpu_circuit_bootstrap_boolean(
     fourier_bsk: FourierLweBootstrapKeyView<'_>,
@@ -33,7 +35,7 @@ pub fn cpu_circuit_bootstrap_boolean(
         let decomposition_level = DecompositionLevel(level_cbs.0 - output_index);
         let start = std::time::Instant::now();
         
-        let decryption_size = 0;
+        let decryption_size = (decomposition_level.0 as u32 * base_log_cbs.0 as u32) +13;
         let plaintext_modulus = 2_u64.pow(decryption_size);
         let mut delta = (1_u64 << 63) / plaintext_modulus;
         let mut decomp = plaintext_modulus.ilog2() + 1;

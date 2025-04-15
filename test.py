@@ -1,25 +1,27 @@
-import numpy as np
-from scipy.special import erf
+def fhe_rounding(ai, N, v, k, q):
+    from math import floor
 
-def lwe_decryption_failure_probability(q, t, sigma):
-    """
-    Computes the decryption failure probability for an LWE/RLWE ciphertext.
+    # Constants
+    twoN = 2 * N
+    scale = twoN * (2 ** (k - v))
 
-    Parameters:
-    q (float): Ciphertext modulus
-    t (float): Plaintext modulus
-    sigma (float): Standard deviation of the error
+    # First rounding: round to nearest integer
+    temp = (ai * scale) / q
+    temp_rounded = round(temp)
 
-    Returns:
-    float: Decryption failure probability
-    """
-    argument = q / (4 * t * sigma)
-    return 1 - erf(argument)
+    # Multiply by 2^v and round again
+    temp2 = round(temp_rounded * (2 ** v))
 
-# Example usage:
-q = 2**64  # Example ciphertext modulus
-t = 2**4     # Example plaintext modulus
-sigma = 3.3747142481837397e06 # Example standard deviation of error
+    # Final result modulo 2N
+    return temp2 % twoN
 
-failure_probability = lwe_decryption_failure_probability(q, t, sigma)
-print(f"Decryption Failure Probability: {failure_probability:.64f}")
+ai = 10479941893543617592
+N = 2048
+v = 2
+k = 0
+q = 2**64  # typical modulus in 64-bit cryptography
+
+print(bin(ai))
+result = fhe_rounding(ai, N, v, k, q)
+print("a_i' =", result)
+print("a_i' in binary =", bin(result))

@@ -1,20 +1,3 @@
-use tfhe::shortint::ciphertext::MaxDegree;
-use tfhe::shortint::parameters::Degree;
-use tfhe::shortint::server_key::ManyLookupTableOwned;
-use tfhe::shortint::PBSParameters;
-
-use tfhe::core_crypto::prelude::GlweCiphertext;
-use tfhe::core_crypto::prelude::Numeric;
-use tfhe::core_crypto::prelude::keyswitch_lwe_ciphertext_into_glwe_ciphertext;
-use tfhe::core_crypto::prelude::ContiguousEntityContainerMut;
-use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_mul_assign;
-use tfhe::core_crypto::prelude::MonomialDegree;
-use tfhe::core_crypto::prelude::slice_algorithms::slice_wrapping_add_assign;
-use tfhe::core_crypto::prelude::trivially_encrypt_lwe_ciphertext;
-use tfhe::core_crypto::prelude::Plaintext;
-use tfhe::core_crypto::prelude::LweCiphertext;
-use tfhe::core_crypto::prelude::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign;
-
 use super::*;
 
 pub fn cpu_gen_encrypted_lut

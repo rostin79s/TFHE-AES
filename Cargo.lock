@@ -13,7 +13,7 @@ dependencies = [
  "rand",
  "rayon",
  "tfhe",
- "tfhe-fft 0.7.0",
+ "tfhe-fft",
 ]
 
 [[package]]
@@ -556,18 +556,6 @@ dependencies = [
 
 [[package]]
 name = "pulp"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9e3f19bdeda2e49d16c8ae90f9615adc2298ee16974bb250d0afb705e33043f"
-dependencies = [
- "bytemuck",
- "libm",
- "num-complex",
- "reborrow",
-]
-
-[[package]]
-name = "pulp"
 version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95fb7a99b37aaef4c7dd2fd15a819eb8010bfc7a2c2155230d51f497316cad6d"
@@ -771,7 +759,7 @@ dependencies = [
  "dyn-stack",
  "itertools 0.14.0",
  "paste",
- "pulp 0.21.4",
+ "pulp",
  "rand_core",
  "rayon",
  "serde",
@@ -779,7 +767,7 @@ dependencies = [
  "strum",
  "tfhe-csprng",
  "tfhe-cuda-backend",
- "tfhe-fft 0.9.0",
+ "tfhe-fft",
  "tfhe-ntt",
  "tfhe-versionable",
 ]
@@ -804,20 +792,6 @@ dependencies = [
 
 [[package]]
 name = "tfhe-fft"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d29c04af86970d497177e5239e4607b85fc1214cbff730194d23806aa8bee5f8"
-dependencies = [
- "aligned-vec",
- "bytemuck",
- "dyn-stack",
- "js-sys",
- "num-complex",
- "pulp 0.20.1",
-]
-
-[[package]]
-name = "tfhe-fft"
 version = "0.9.0"
 dependencies = [
  "aligned-vec",
@@ -825,7 +799,7 @@ dependencies = [
  "dyn-stack",
  "js-sys",
  "num-complex",
- "pulp 0.21.4",
+ "pulp",
  "serde",
 ]
 
@@ -835,7 +809,7 @@ version = "0.6.0"
 dependencies = [
  "aligned-vec",
  "bytemuck",
- "pulp 0.21.4",
+ "pulp",
 ]
 
 [[package]]
