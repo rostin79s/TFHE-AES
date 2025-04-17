@@ -33,18 +33,9 @@ pub fn cpu_circuit_bootstrap_boolean(
 
     for (output_index, mut ggsw_level_matrix) in ggsw_out.iter_mut().enumerate() {
         let decomposition_level = DecompositionLevel(level_cbs.0 - output_index);
+
         let start = std::time::Instant::now();
-        
-        let decryption_size = (decomposition_level.0 as u32 * base_log_cbs.0 as u32) +13;
-        let plaintext_modulus = 2_u64.pow(decryption_size);
-        let mut delta = (1_u64 << 63) / plaintext_modulus;
-        let mut decomp = plaintext_modulus.ilog2() + 1;
-        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_small_lwe_sk, &lwe_in);
-        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
-        let sb_dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
-
-
-        println!("sb_dec before: {:?}", sb_dec);
+        println!("decomposition_level: {:?}", decomposition_level);
         homomorphic_shift_boolean(
             fourier_bsk,
             lwe_out_bs_buffer.as_mut_view(),
@@ -55,20 +46,8 @@ pub fn cpu_circuit_bootstrap_boolean(
             fft,
             stack,
         );
-        // let sb_dec = cpu_decrypt(&FHEParameters::Wopbs(*wopbs_params), wopbs_big_lwe_sk, &lwe_out_bs_buffer, false);
+        println!("homomorphic_shift_boolean: {:?}", start.elapsed());   
 
-        let plaintext_modulus = 2_u64.pow(decryption_size);
-        let mut delta = (1_u64 << 63) / plaintext_modulus;
-        let mut decomp = plaintext_modulus.ilog2() + 1;
-        let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&wopbs_big_lwe_sk, &lwe_out_bs_buffer);
-        let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
-        let sb_dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
-
-
-        println!("sb_dec after: {:?}", sb_dec);
-        let n_out = lwe_out_bs_buffer.lwe_size().0;
-        // println!("n_out: {}", n_out);
-        // println!("homomorphic_shift_boolean: {:?}", start.elapsed());
         for (pfpksk, mut glwe_out) in pfpksk_list
             .iter()
             .zip(ggsw_level_matrix.as_mut_glwe_list().iter_mut())
@@ -79,7 +58,7 @@ pub fn cpu_circuit_bootstrap_boolean(
                 &mut glwe_out,
                 &lwe_out_bs_buffer,
             );
-            // println!("private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext: {:?}", start.elapsed());
+            println!("private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext: {:?}", start.elapsed());
         }
     }
 }

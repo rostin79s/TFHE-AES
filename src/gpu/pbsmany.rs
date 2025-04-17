@@ -33,16 +33,12 @@ pub fn cpu_modulus_switch<Scalar: UnsignedInteger + CastFrom<u64>>(
     log_modulus: CiphertextModulusLog,
     v: usize
 ) -> Scalar {
-    println!("input: {}", input);
-    let input2: Scalar = Scalar::cast_from(input);
-    let temp2 = input2.wrapping_add(Scalar::ONE << (Scalar::BITS - log_modulus.0 - 1));
-    let temp2 = temp2 >> (Scalar::BITS - log_modulus.0);
+    // let input2: Scalar = Scalar::cast_from(input);
+    // let temp2 = input2.wrapping_add(Scalar::ONE << (Scalar::BITS - log_modulus.0 - 1));
+    // let temp2 = temp2 >> (Scalar::BITS - log_modulus.0);
     
-    let mask = !((Scalar::ONE << v) - Scalar::ONE);
-    let temp2 = temp2 & mask;
-    println!("temp2: {:?}", temp2);
-    // print in binary
-    println!("temp2: {:b}", temp2);
+    // let mask = !((Scalar::ONE << v) - Scalar::ONE);
+    // let temp2 = temp2 & mask;
 
     let k: usize = 0;
     let two_n = 1 << log_modulus.0;
@@ -70,8 +66,6 @@ pub fn cpu_modulus_switch<Scalar: UnsignedInteger + CastFrom<u64>>(
     // Final result is modulo 2N
     let result = second_result % two_n;
     let result = result as u64;
-    println!("result: {:?}", result);
-    println!("result: {:b}", result);
 
     return Scalar::cast_from(result);
     
@@ -247,20 +241,21 @@ pub fn cpu_gen_pbsmany_lut
     let mut accumulator_view = acc.as_mut_view();
     let mut body = accumulator_view.get_mut_body();
     let p = plaintext_modulus.ilog2();
-    println!("p: {}", p);
+    // println!("p: {}", p);
     let delta = 1 << (64 - p - 1);
     let function_count = vec_functions.len();
     let box_size = polynomial_size.0 >> p;
-    println!("box_size: {}", box_size);
+    // println!("box_size: {}", box_size);
     {
         let accumulator_u64 = body.as_mut();
         // Clear in case we don't fill the full accumulator so that the remainder part is 0
         accumulator_u64.as_mut().fill(0u64);
         for (msg_value, acc_box) in accumulator_u64.chunks_exact_mut(box_size).enumerate(){
-            println!("msg_value: {}", msg_value);
+            // println!("msg_value: {}", msg_value);
             for (index, value) in acc_box.iter_mut().enumerate(){
                 let function_eval = vec_functions[index%function_count](msg_value as u64);
-                *value = (function_eval % plaintext_modulus as u64) * delta;
+                // *value = (function_eval % plaintext_modulus as u64) * delta;
+                *value = (function_eval as u64) * delta;
             }
         }
     }
@@ -271,12 +266,12 @@ pub fn cpu_gen_pbsmany_lut
             for i in 0..4 {
                 let index = j*128 + k*4 + i;
                 let eval = vec_functions[i](j as u64);
-                lut[index] = (eval % plaintext_modulus as u64) * delta;
+                lut[index] = (eval  as u64) * delta;
             }
         }
     }
     // lut.rotate_right(64);
-    println!("lut: {:?}", lut);
+    // println!("lut: {:?}", lut);
     
     let half_box_size = box_size / 2;
 
