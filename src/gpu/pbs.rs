@@ -17,8 +17,8 @@ pub fn cpu_gen_encrypted_lut
             params.polynomial_size,
         ),
         FHEParameters::PBS(params) => (
-            params.glwe_dimension().to_glwe_size(),
-            params.polynomial_size(),
+            params.glwe_dimension.to_glwe_size(),
+            params.polynomial_size,
         ),
         
     };
@@ -96,10 +96,10 @@ pub fn cpu_gen_many_lut
             params.ciphertext_modulus,
         ),
         FHEParameters::PBS(params) => (
-            params.message_modulus().0 * params.carry_modulus().0,
-            params.polynomial_size(),
-            params.glwe_dimension().to_glwe_size(),
-            params.ciphertext_modulus(),
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension.to_glwe_size(),
+            params.ciphertext_modulus,
         ),
     };
 
@@ -231,10 +231,10 @@ pub fn cpu_gen_lut
             params.ciphertext_modulus,
         ),
         FHEParameters::PBS(params) => (
-            params.message_modulus().0 * params.carry_modulus().0,
-            params.polynomial_size(),
-            params.glwe_dimension(),
-            params.ciphertext_modulus(),
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension,
+            params.ciphertext_modulus,
         ),
     };
 
@@ -400,79 +400,63 @@ pub fn gpu_multi_pbs(streams: &CudaStreams, bsk: &LweMultiBitBootstrapKey<Vec<u6
 ///
 /// Starts by shifting the message bit at bit #delta_log to the padding bit and then shifts it to
 /// the right by base_log * level.
-pub fn cpu_bootstrap_boolean_no_padding<Scalar: UnsignedTorus + CastInto<usize>>(
-    fourier_bsk: FourierLweBootstrapKeyView<'_>,
-    mut lwe_out: LweCiphertext<&mut [Scalar]>,
-    lwe_in: LweCiphertext<&[Scalar]>,
-    level_count_cbs: DecompositionLevel,
-    base_log_cbs: DecompositionBaseLog,
-    delta_log: DeltaLog,
-    fft: FftView<'_>,
-    stack: &mut PodStack,
-) {
-    debug_assert!(lwe_out.ciphertext_modulus() == lwe_in.ciphertext_modulus());
-    debug_assert!(
-        lwe_in.ciphertext_modulus().is_native_modulus(),
-        "This operation currently only supports native moduli"
-    );
+pub fn cpu_bootstrap_boolean_no_padding<
+BskCont
+>
+(
+    fourier_bsk: &FourierLweBootstrapKey<BskCont>,
+    lwe_in: &mut LweCiphertext<Vec<u64>>,
+) -> LweCiphertext<Vec<u64>>
+where 
+    BskCont: Container<Element = c64>,
+{
 
-    let ciphertext_n_bits = Scalar::BITS;
-    let lwe_in_size = lwe_in.lwe_size();
+    let mut lwe_out = LweCiphertext::new(0, fourier_bsk.output_lwe_dimension().to_lwe_size(), lwe_in.ciphertext_modulus());
+        
+
+    let ciphertext_n_bits = u64::BITS;
     let polynomial_size = fourier_bsk.polynomial_size();
     let ciphertext_moudulus = lwe_out.ciphertext_modulus();
 
-    let (lwe_left_shift_buffer_data, stack) =
-        stack.make_aligned_with(lwe_in_size.0, CACHELINE_ALIGN, |_| Scalar::ZERO);
-    let mut lwe_left_shift_buffer = LweCiphertext::from_container(
-        &mut *lwe_left_shift_buffer_data,
-        lwe_in.ciphertext_modulus(),
-    );
-    // Shift message LSB on padding bit, at this point we expect to have messages with only 1 bit
-    // of information
-    lwe_ciphertext_cleartext_mul(
-        &mut lwe_left_shift_buffer,
-        &lwe_in,
-        Cleartext(Scalar::ONE << (ciphertext_n_bits - delta_log.0 - 1)),
-    );
 
     // Add q/4 to center the error while computing a negacyclic LUT
-    // let shift_buffer_body = lwe_left_shift_buffer.get_mut_body();
-    // *shift_buffer_body.data =
-    //     (*shift_buffer_body.data).wrapping_add(Scalar::ONE << (ciphertext_n_bits - 2));
+    let shift_buffer_body = lwe_in.get_mut_body();
+    *shift_buffer_body.data =
+        (*shift_buffer_body.data).wrapping_add(u64::ONE << (ciphertext_n_bits - 2));
 
-    let (pbs_accumulator_data, stack) = stack.make_aligned_with(
-        polynomial_size.0 * fourier_bsk.glwe_size().0,
-        CACHELINE_ALIGN,
-        |_| Scalar::ZERO,
-    );
-    let mut pbs_accumulator = GlweCiphertextMutView::from_container(
-        &mut *pbs_accumulator_data,
+
+    let mut pbs_accumulator = GlweCiphertext::new(
+        0u64,
+        fourier_bsk.glwe_size(),
         polynomial_size,
-        ciphertext_moudulus,
+        ciphertext_moudulus
     );
 
     // Fill lut (equivalent to trivial encryption as mask is 0s)
     // The LUT is filled with -alpha in each coefficient where
     // alpha = 2^{log(q) - 1 - base_log * level}
     pbs_accumulator.get_mut_body().as_mut().fill(
-        Scalar::ZERO.wrapping_sub(
-            Scalar::ONE << (ciphertext_n_bits - 2),
+        u64::ZERO.wrapping_sub(
+            u64::ONE << (ciphertext_n_bits - 2),
         ),
     );
 
     // Applying a negacyclic LUT on a ciphertext with one bit of message in the MSB and no bit
     // of padding
-    fourier_bsk.bootstrap(
-        lwe_out.as_mut_view(),
-        lwe_left_shift_buffer.as_view(),
-        pbs_accumulator.as_view(),
-        fft,
-        stack,
-    );
+    programmable_bootstrap_lwe_ciphertext(lwe_in, &mut lwe_out, &pbs_accumulator, fourier_bsk);
+
+    // fourier_bsk.bootstrap(
+    //     lwe_out.as_mut_view(),
+    //     lwe_left_shift_buffer.as_view(),
+    //     pbs_accumulator.as_view(),
+    //     fft,
+    //     stack,
+    // );
 
     // Add alpha where alpha = 2^{log(q) - 1 - base_log * level}
     // To end up with an encryption of 0 if the message bit was 0 and 1 in the other case
     let out_body = lwe_out.get_mut_body();
     *out_body.data = (*out_body.data)
-        .wrapping_add(Scalar::ONE << (ciphertext_n_bits - 2));
+        .wrapping_add(u64::ONE << (ciphertext_n_bits - 2));
+    return lwe_out;
 }

@@ -19,7 +19,7 @@ pub fn cpu_eb
     let plaintext_modulus = match wopbs_parameters {
         FHEParameters::MultiBit(params) => params.message_modulus.0 * params.carry_modulus.0,
         FHEParameters::Wopbs(params) => params.message_modulus.0 * params.carry_modulus.0,
-        FHEParameters::PBS(params) => params.message_modulus().0 * params.carry_modulus().0,
+        FHEParameters::PBS(params) => params.message_modulus.0 * params.carry_modulus.0,
     };
     
     let nb_bit_to_extract = plaintext_modulus.ilog2() as usize;

@@ -32,7 +32,7 @@ pub fn bloom_encrypted_query
 {
     let plaintext_modulus: usize = match pbs_params {
         FHEParameters::MultiBit(params) => (params.message_modulus.0 * params.carry_modulus.0) as usize,
-        FHEParameters::PBS(params) => (params.message_modulus().0 * params.carry_modulus().0) as usize,
+        FHEParameters::PBS(params) => (params.message_modulus.0 * params.carry_modulus.0) as usize,
         FHEParameters::Wopbs(_) => panic!("Invalid parameter: Wopbs is not supported"),
     };
     let m = bloom.len();

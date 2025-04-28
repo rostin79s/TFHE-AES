@@ -23,15 +23,17 @@ fn round_div(numerator: u128, denominator: u128) -> u128 {
 pub fn cpu_pbs_modulus_switch<Scalar: UnsignedInteger + CastInto<usize>>(
     input: u64,
     polynomial_size: PolynomialSize,
-    v: usize
+    v: usize,
+    x: i32
 ) -> usize {
-    cpu_modulus_switch::<u64>(input, polynomial_size.to_blind_rotation_input_modulus_log(), v).cast_into()
+    cpu_modulus_switch::<u64>(input, polynomial_size.to_blind_rotation_input_modulus_log(), v as i32, x).cast_into()
 }
 
 pub fn cpu_modulus_switch<Scalar: UnsignedInteger + CastFrom<u64>>(
     input: u64,
     log_modulus: CiphertextModulusLog,
-    v: usize
+    v: i32,
+    x: i32
 ) -> Scalar {
     // let input2: Scalar = Scalar::cast_from(input);
     // let temp2 = input2.wrapping_add(Scalar::ONE << (Scalar::BITS - log_modulus.0 - 1));
@@ -40,22 +42,24 @@ pub fn cpu_modulus_switch<Scalar: UnsignedInteger + CastFrom<u64>>(
     // let mask = !((Scalar::ONE << v) - Scalar::ONE);
     // let temp2 = temp2 & mask;
 
-    let k: usize = 0;
     let two_n = 1 << log_modulus.0;
     
     // scale = twoN * (2^(k - v))
     // Here k-v might be negative so we do the proper branch
-    let scale: u128 = if k >= v {
-        two_n * (1u128 << (k - v) as u32)
+    // let scale = two_n;
+    let scale: u128 = if x >= v {
+        two_n * (1u128 << (x - v) as u32)
     } else {
-        // When k-v is negative, use division.
-        two_n / (1u128 << ((v - k) as u32))
+        // When x-v is negative, use division.
+        two_n / (1u128 << ((v - x) as u32))
     };
 
     // First rounding: compute round((ai * scale) / q)
     let ai = input as u128;
     let prod = ai * scale;
-    let q = 1u128 << 64;
+    let exponent = 64 ;
+    // println!("exponent: {}", exponent);
+    let q = 1u128 << exponent;
     let temp_rounded = round_div(prod, q);
 
     // Multiply by 2^v and round again.
@@ -75,7 +79,8 @@ fn cpu_genpbs_blind_rotate_assign(
     input: &LweCiphertext<Vec<u64>>,
     lut: &mut GlweCiphertext<Vec<u64>>,
     fourier_bsk: &FourierLweBootstrapKeyView<'_>,
-    v: usize
+    v: usize,
+    x: i32
 ) {
     let mut buffers = ComputationBuffers::new();
 
@@ -102,7 +107,7 @@ fn cpu_genpbs_blind_rotate_assign(
     let lut_poly_size = lut.polynomial_size();
     let ciphertext_modulus = lut.ciphertext_modulus();
     assert!(ciphertext_modulus.is_compatible_with_native_modulus());
-    let monomial_degree = MonomialDegree(cpu_pbs_modulus_switch::<u64>(*lwe_body.data, lut_poly_size, v));
+    let monomial_degree = MonomialDegree(cpu_pbs_modulus_switch::<u64>(*lwe_body.data, lut_poly_size, v, x));
 
     lut.as_mut_polynomial_list()
     .iter_mut()
@@ -125,7 +130,7 @@ fn cpu_genpbs_blind_rotate_assign(
     {
         if *lwe_mask_element != u64::ZERO {
             let monomial_degree =
-                MonomialDegree(cpu_pbs_modulus_switch::<u64>(*lwe_mask_element, lut_poly_size, v));
+                MonomialDegree(cpu_pbs_modulus_switch::<u64>(*lwe_mask_element, lut_poly_size, v, x));
 
             // we effectively inline the body of cmux here, merging the initial subtraction
             // operation with the monic polynomial multiplication, then performing the external
@@ -177,11 +182,12 @@ pub fn cpu_pbsmany
     fourier_bsk: &FourierLweBootstrapKeyView<'_>,
     ct: &LweCiphertext<Vec<u64>>,
     lut: &mut GlweCiphertext<Vec<u64>>,
-    v: usize
+    v: usize,
+    x: i32
 ) -> Vec<LweCiphertext<Vec<u64>>>
 {
     println!("v: {} ", v);
-    cpu_genpbs_blind_rotate_assign(&ct, lut, &fourier_bsk, v);
+    cpu_genpbs_blind_rotate_assign(&ct, lut, &fourier_bsk, v, x);
 
     let function_count = 2_i32.pow(v as u32) as usize;
     let mut outputs = Vec::with_capacity(function_count);
@@ -207,7 +213,8 @@ pub fn cpu_pbsmany
 pub fn cpu_gen_pbsmany_lut
 (
     pbs_params: &FHEParameters,
-    vec_functions:  Vec<impl Fn(u64) -> u64>
+    vec_functions:  Vec<impl Fn(u64) -> u64>,
+    x: i32
 ) -> (GlweCiphertext<Vec<u64>> , usize)
 {
     let (plaintext_modulus, polynomial_size, glwe_size, ciphertext_modulus) = match pbs_params {
@@ -224,10 +231,10 @@ pub fn cpu_gen_pbsmany_lut
             params.ciphertext_modulus,
         ),
         FHEParameters::PBS(params) => (
-            params.message_modulus().0 * params.carry_modulus().0,
-            params.polynomial_size(),
-            params.glwe_dimension().to_glwe_size(),
-            params.ciphertext_modulus(),
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.polynomial_size,
+            params.glwe_dimension.to_glwe_size(),
+            params.ciphertext_modulus,
         ),
     };
 
@@ -240,9 +247,9 @@ pub fn cpu_gen_pbsmany_lut
 
     let mut accumulator_view = acc.as_mut_view();
     let mut body = accumulator_view.get_mut_body();
-    let p = plaintext_modulus.ilog2();
-    // println!("p: {}", p);
-    let delta = 1 << (64 - p - 1);
+    let p = plaintext_modulus.ilog2() as i32 - x;
+    println!("p: {}", p);
+    let delta = 1 << (64 - p);
     let function_count = vec_functions.len();
     let box_size = polynomial_size.0 >> p;
     // println!("box_size: {}", box_size);

@@ -6,6 +6,8 @@ pub mod pbsmany;
 
 
 
+
+use aes::cipher::typenum::Pow;
 use tfhe::{
     core_crypto::{
         backward_compatibility::commons::ciphertext_modulus, gpu::{
@@ -18,7 +20,7 @@ use tfhe::{
             keyswitch_lwe_ciphertext, LweCiphertext, LweCiphertextCount, LweCiphertextList, LweKeyswitchKey, LweSize
         }
     }, integer::wopbs, shortint::{
-        prelude::LweDimension, CarryModulus, MessageModulus, MultiBitPBSParameters, PBSParameters, WopbsParameters
+        prelude::LweDimension, CarryModulus, ClassicPBSParameters, MaxNoiseLevel, MessageModulus, MultiBitPBSParameters, PBSParameters, WopbsParameters
     }
 };
 
@@ -110,13 +112,40 @@ use tfhe::core_crypto::commons::utils::izip;
 pub enum FHEParameters{
     MultiBit(MultiBitPBSParameters),
     Wopbs(WopbsParameters),
-    PBS(PBSParameters),
+    PBS(ClassicPBSParameters),
 }
 
+// - 6 :   2, 10,  812,    1, 23,     3,  5,     77, 9.9e-14
+pub const PBS_PARAMS_no_padding:
+    ClassicPBSParameters =
+    ClassicPBSParameters {
+    lwe_dimension: LweDimension(812),
+    glwe_dimension: GlweDimension(2),
+    polynomial_size: PolynomialSize(1024),
+    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.3747142481837397e-06,
+    )),
+    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        2.845267479601915e-15,
+    )),
+    pbs_base_log: DecompositionBaseLog(23),
+    pbs_level: DecompositionLevelCount(1),
+    ks_base_log: DecompositionBaseLog(5),
+    ks_level: DecompositionLevelCount(3),
+    message_modulus: MessageModulus(4),
+    carry_modulus: CarryModulus(4),
+    max_noise_level: MaxNoiseLevel::new(8),
+    log2_p_fail: -40.0,
+    ciphertext_modulus: CiphertextModulus::new_native(),
+    encryption_key_choice: EncryptionKeyChoice::Big,
+    modulus_switch_noise_reduction_params: None,
+};
 
+
+// 4 :   2, 10,  601,    3, 12,     5,  2,     1, 13,     2, 16,    153, 9.1e-15
 pub const PARAM_OPT: WopbsParameters =
 WopbsParameters {
-    lwe_dimension: LweDimension(534),
+    lwe_dimension: LweDimension(601),
     glwe_dimension: GlweDimension(2),
     polynomial_size: PolynomialSize(1024),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -130,22 +159,22 @@ WopbsParameters {
     ks_level: DecompositionLevelCount(5),
     ks_base_log: DecompositionBaseLog(2),
     pfks_level: DecompositionLevelCount(2),
-    pfks_base_log: DecompositionBaseLog(17),
+    pfks_base_log: DecompositionBaseLog(16),
     pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.162026630747649e-16,
     )),
-    cbs_level: DecompositionLevelCount(2),
-    cbs_base_log: DecompositionBaseLog(9),
+    cbs_level: DecompositionLevelCount(1),
+    cbs_base_log: DecompositionBaseLog(13),
     message_modulus: MessageModulus(2),
     carry_modulus: CarryModulus(1),
     ciphertext_modulus: CiphertextModulus::new_native(),
     encryption_key_choice: EncryptionKeyChoice::Big,
 };
 
-// - 3 :   2, 10,  723,    4,  9,     7,  2,     2,  9,     2, 16,   2885, 7.4e-13 = 2**-40
+// - 3 :   2, 10,  672,    3, 12,     4,  3,     1, 13,     2, 16,    163, 7.5e-15
 pub const EXP: WopbsParameters =
 WopbsParameters {
-    lwe_dimension: LweDimension(723),
+    lwe_dimension: LweDimension(672),
     glwe_dimension: GlweDimension(2),
     polynomial_size: PolynomialSize(1024),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -154,26 +183,27 @@ WopbsParameters {
     glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.162026630747649e-16,
     )),
-    pbs_base_log: DecompositionBaseLog(9),
-    pbs_level: DecompositionLevelCount(4),
-    ks_level: DecompositionLevelCount(7),
-    ks_base_log: DecompositionBaseLog(2),
+    pbs_base_log: DecompositionBaseLog(12),
+    pbs_level: DecompositionLevelCount(3),
+    ks_level: DecompositionLevelCount(4),
+    ks_base_log: DecompositionBaseLog(3),
     pfks_level: DecompositionLevelCount(2),
     pfks_base_log: DecompositionBaseLog(16),
     pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.162026630747649e-16,
     )),
-    cbs_level: DecompositionLevelCount(2),
-    cbs_base_log: DecompositionBaseLog(9),
+    cbs_level: DecompositionLevelCount(1),
+    cbs_base_log: DecompositionBaseLog(13),
     message_modulus: MessageModulus(2),
     carry_modulus: CarryModulus(1),
     ciphertext_modulus: CiphertextModulus::new_native(),
     encryption_key_choice: EncryptionKeyChoice::Big,
 };
 
+// - 2 :   2, 10,  568,    2, 15,     3,  3,     1, 10,     1, 24,     95, 6.9e-15 | 0 padding bit
 pub const EXP2: WopbsParameters =
 WopbsParameters {
-    lwe_dimension: LweDimension(647),
+    lwe_dimension: LweDimension(568),
     glwe_dimension: GlweDimension(2),
     polynomial_size: PolynomialSize(1024),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -184,8 +214,37 @@ WopbsParameters {
     )),
     pbs_base_log: DecompositionBaseLog(15),
     pbs_level: DecompositionLevelCount(2),
-    ks_level: DecompositionLevelCount(4),
+    ks_level: DecompositionLevelCount(3),
     ks_base_log: DecompositionBaseLog(3),
+    pfks_level: DecompositionLevelCount(1),
+    pfks_base_log: DecompositionBaseLog(24),
+    pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    cbs_level: DecompositionLevelCount(1),
+    cbs_base_log: DecompositionBaseLog(10),
+    message_modulus: MessageModulus(2),
+    carry_modulus: CarryModulus(1),
+    ciphertext_modulus: CiphertextModulus::new_native(),
+    encryption_key_choice: EncryptionKeyChoice::Big,
+};
+
+// - 2 :   2, 10,  587,    2, 15,     5,  2,     1, 11,     2, 16,    126, 6.6e-15  | 1 padding bit
+pub const EXP3: WopbsParameters =
+WopbsParameters {
+    lwe_dimension: LweDimension(587),
+    glwe_dimension: GlweDimension(2),
+    polynomial_size: PolynomialSize(1024),
+    lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.0517578125e-05,
+    )),
+    glwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
+        3.162026630747649e-16,
+    )),
+    pbs_base_log: DecompositionBaseLog(15),
+    pbs_level: DecompositionLevelCount(2),
+    ks_level: DecompositionLevelCount(5),
+    ks_base_log: DecompositionBaseLog(2),
     pfks_level: DecompositionLevelCount(2),
     pfks_base_log: DecompositionBaseLog(16),
     pfks_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
@@ -198,6 +257,8 @@ WopbsParameters {
     ciphertext_modulus: CiphertextModulus::new_native(),
     encryption_key_choice: EncryptionKeyChoice::Big,
 };
+
+
 
 pub const paper_1: WopbsParameters =
 WopbsParameters {
@@ -221,7 +282,7 @@ WopbsParameters {
     )),
     cbs_level: DecompositionLevelCount(1),
     cbs_base_log: DecompositionBaseLog(13),
-    message_modulus: MessageModulus(2),
+    message_modulus: MessageModulus(16),
     carry_modulus: CarryModulus(1),
     ciphertext_modulus: CiphertextModulus::new_native(),
     encryption_key_choice: EncryptionKeyChoice::Big,
@@ -229,7 +290,7 @@ WopbsParameters {
 
 
 pub fn cpu_params() -> WopbsParameters{
-    return paper_1;
+    return EXP2;
 }
 
 pub fn cpu_seed(
@@ -248,9 +309,9 @@ pub fn cpu_seed(
             params.polynomial_size,
         ),
         FHEParameters::PBS(params) => (
-            params.lwe_dimension(),
-            params.glwe_dimension(),
-            params.polynomial_size(),
+            params.lwe_dimension,
+            params.glwe_dimension,
+            params.polynomial_size,
         ),
     };
 
@@ -271,19 +332,39 @@ pub fn cpu_seed(
 }
 
 pub fn cpu_gen_ksk(
-    pbs_params: &MultiBitPBSParameters,
+    pbs_params: &FHEParameters,
     encryption_generator: &mut EncryptionRandomGenerator<DefaultRandomGenerator>,
     small_lwe_sk: &LweSecretKey<Vec<u64>>,
     big_lwe_sk: &LweSecretKey<Vec<u64>>
 ) -> LweKeyswitchKey<Vec<u64>>
 {
+    let (ks_base_log, ks_level, lwe_noise_distribution, ciphertext_modulus) = match pbs_params {
+        FHEParameters::MultiBit(params) => (
+            params.ks_base_log,
+            params.ks_level,
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.ks_base_log,
+            params.ks_level,
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.ks_base_log,
+            params.ks_level,
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+    };
     let ksk = allocate_and_generate_new_lwe_keyswitch_key(
         &big_lwe_sk,
         &small_lwe_sk,
-        pbs_params.ks_base_log,
-        pbs_params.ks_level,
-        pbs_params.lwe_noise_distribution,
-        pbs_params.ciphertext_modulus,
+        ks_base_log,
+        ks_level,
+        lwe_noise_distribution,
+        ciphertext_modulus,
         encryption_generator,
     );
     return ksk;
@@ -311,10 +392,10 @@ pub fn cpu_gen_bsk
             params.ciphertext_modulus,
         ),
         FHEParameters::PBS(params) => (
-            params.pbs_base_log(),
-            params.pbs_level(),
-            params.glwe_noise_distribution(),
-            params.ciphertext_modulus(),
+            params.pbs_base_log,
+            params.pbs_level,
+            params.glwe_noise_distribution,
+            params.ciphertext_modulus,
         ),
     };
 
@@ -342,21 +423,38 @@ pub fn cpu_gen_bsk
 
 pub fn cpu_gen_pksk
 (
-    pbs_params: &MultiBitPBSParameters, 
+    pbs_params: &FHEParameters, 
     input_lwe_secret_key: &LweSecretKey<Vec<u64>>, 
     output_glwe_secret_key: &GlweSecretKey<Vec<u64>>,
     encryption_generator: &mut EncryptionRandomGenerator<DefaultRandomGenerator>,
 ) -> LwePackingKeyswitchKey<Vec<u64>>
 {
-    let decomp_base_log = pbs_params.pbs_base_log;
-    let decomp_level_count = pbs_params.pbs_level;
-    let glwe_noise_distribution = pbs_params.glwe_noise_distribution;
-    let ciphertext_modulus = pbs_params.ciphertext_modulus;
+    let (pbs_base_log, pbs_level, glwe_noise_distribution, ciphertext_modulus) = match pbs_params {
+        FHEParameters::MultiBit(params) => (
+            params.pbs_base_log,
+            params.pbs_level,
+            params.glwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.pbs_base_log,
+            params.pbs_level,
+            params.glwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.pbs_base_log,
+            params.pbs_level,
+            params.glwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+    };
+
     let pksk: LwePackingKeyswitchKey<Vec<u64>> = allocate_and_generate_new_lwe_packing_keyswitch_key(
         &input_lwe_secret_key,
         &output_glwe_secret_key,
-        decomp_base_log,
-        decomp_level_count,
+        pbs_base_log,
+        pbs_level,
         glwe_noise_distribution,
         ciphertext_modulus,
         encryption_generator,
@@ -495,9 +593,9 @@ pub fn cpu_encrypt
             params.ciphertext_modulus,
         ),
         FHEParameters::PBS(params) => (
-            params.message_modulus().0 * params.carry_modulus().0,
-            params.lwe_noise_distribution(),
-            params.ciphertext_modulus(),
+            params.message_modulus.0 * params.carry_modulus.0,
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
         ),
     };
 
@@ -520,6 +618,41 @@ pub fn cpu_encrypt
     return ct;
 }
 
+pub fn cpu_encrypt_custom(
+    pbs_params: &FHEParameters,
+    encryption_generator: &mut EncryptionRandomGenerator<DefaultRandomGenerator>,
+    small_lwe_sk: &LweSecretKey<Vec<u64>>,
+    clear: u64,
+    delta: u64,
+) -> LweCiphertext<Vec<u64>>
+{
+    let (lwe_noise_distribution,ciphertext_modulus) = match pbs_params {
+        FHEParameters::MultiBit(params) => (
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::Wopbs(params) => (
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+        FHEParameters::PBS(params) => (
+            params.lwe_noise_distribution,
+            params.ciphertext_modulus,
+        ),
+    };
+
+    let plaintext1 = Plaintext(clear * delta);
+    let ct: LweCiphertextOwned<u64> = allocate_and_encrypt_new_lwe_ciphertext(
+        &small_lwe_sk,
+        plaintext1,
+        lwe_noise_distribution,
+        ciphertext_modulus,
+        encryption_generator,
+    );
+    return ct;
+}
+
+
 pub fn cpu_decrypt
 (
     pbs_params: &FHEParameters,
@@ -531,7 +664,7 @@ pub fn cpu_decrypt
     let plaintext_modulus = match pbs_params {
         FHEParameters::MultiBit(params) => params.message_modulus.0 * params.carry_modulus.0,
         FHEParameters::Wopbs(params) => params.message_modulus.0 * params.carry_modulus.0,
-        FHEParameters::PBS(params) => params.message_modulus().0 * params.carry_modulus().0,
+        FHEParameters::PBS(params) => params.message_modulus.0 * params.carry_modulus.0,
     };
 
     let mut delta = (1_u64 << 63) / plaintext_modulus;
@@ -542,6 +675,22 @@ pub fn cpu_decrypt
     }
     
     let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&big_lwe_sk, &ct);
+    let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
+    let dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
+
+    return dec;
+}
+
+pub fn cpu_decrypt_delta
+(
+    sk: &LweSecretKey<Vec<u64>>,
+    ct: &LweCiphertext<Vec<u64>>,
+    delta: u64
+) -> u64
+{
+
+    let decomp = 64 - delta.ilog2();
+    let dec: Plaintext<u64> = decrypt_lwe_ciphertext(&sk, &ct);
     let signed_decomposer = SignedDecomposer::new(DecompositionBaseLog(decomp as usize), DecompositionLevelCount(1));
     let dec: u64 = signed_decomposer.closest_representable(dec.0) / delta;
 
@@ -575,4 +724,25 @@ pub fn cpu_lwelist_to_veclwe
         vec_lwe_out.push(LweCiphertextOwned::from_container(temp, lwe_out.ciphertext_modulus()));
     }
     return vec_lwe_out;
+}
+
+pub fn cpu_modswitch
+(
+    ct: &mut LweCiphertext<Vec<u64>>,
+    new_modulus_log: u64,
+)
+{
+    let (mut mask, body) = ct.get_mut_mask_and_body();
+    let mask = mask.as_mut();
+    let body = body.data;
+
+    // let output_to_floor = input.wrapping_add(Scalar::ONE << (Scalar::BITS - log_modulus.0 - 1));
+    // output_to_floor >> (Scalar::BITS - log_modulus.0)
+
+    *body = body.wrapping_add(u64::ONE << ((u64::BITS as u64) - new_modulus_log - 1));
+    *body = *body >> ((u64::BITS as u64) - new_modulus_log);
+    for a in mask.iter_mut(){
+        *a = a.wrapping_add(u64::ONE << ((u64::BITS as u64) - new_modulus_log - 1));
+        *a = *a >> ((u64::BITS as u64) - new_modulus_log);
+    }
 }

@@ -46,6 +46,7 @@ pub fn cpu_circuit_bootstrap_boolean(
             fft,
             stack,
         );
+        // let dec = cpu_decrypt_delta(wopbs_params, big_lwe_sk, ct, delta);
         println!("homomorphic_shift_boolean: {:?}", start.elapsed());   
 
         for (pfpksk, mut glwe_out) in pfpksk_list
@@ -145,11 +146,13 @@ pub fn cpu_circuit_bootstrap_boolean_vertical_packing
         big_lut_as_polynomial_list.chunks_exact(small_lut_size),
         lwe_list_out.iter_mut(),
     ) {
+        let start = std::time::Instant::now();
         vertical_packing(lut, lwe_out, ggsw_list.as_view(), fft, stack);
+        println!("vertical_packing: {:?}", start.elapsed());
         // break;
     }
 
-    println!("vertical_packing: {:?}", start.elapsed());
+    println!("vertical_packing total: {:?}", start.elapsed());
 
 
 

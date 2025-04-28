@@ -18,7 +18,7 @@ pub fn bloom_gen_lwe
 {
     let plaintext_modulus: u64 = match pbs_params  {
         FHEParameters::MultiBit(params) => params.message_modulus.0 * params.carry_modulus.0,
-        FHEParameters::PBS(params) => params.message_modulus().0 * params.carry_modulus().0,
+        FHEParameters::PBS(params) => params.message_modulus.0 * params.carry_modulus.0,
         FHEParameters::Wopbs(_) => panic!("Invalid parameter: Wopbs is not supported"),
     };
 
