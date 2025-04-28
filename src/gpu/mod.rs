@@ -119,9 +119,9 @@ pub enum FHEParameters{
 pub const PBS_PARAMS_no_padding:
     ClassicPBSParameters =
     ClassicPBSParameters {
-    lwe_dimension: LweDimension(812),
-    glwe_dimension: GlweDimension(2),
-    polynomial_size: PolynomialSize(1024),
+    lwe_dimension: LweDimension(748),
+    glwe_dimension: GlweDimension(1),
+    polynomial_size: PolynomialSize(2048),
     lwe_noise_distribution: DynamicDistribution::new_gaussian_from_std_dev(StandardDev(
         3.3747142481837397e-06,
     )),
@@ -130,8 +130,8 @@ pub const PBS_PARAMS_no_padding:
     )),
     pbs_base_log: DecompositionBaseLog(23),
     pbs_level: DecompositionLevelCount(1),
-    ks_base_log: DecompositionBaseLog(5),
-    ks_level: DecompositionLevelCount(3),
+    ks_base_log: DecompositionBaseLog(3),
+    ks_level: DecompositionLevelCount(4),
     message_modulus: MessageModulus(4),
     carry_modulus: CarryModulus(4),
     max_noise_level: MaxNoiseLevel::new(8),

@@ -6,7 +6,7 @@ use bloom::{bloom::*, bloom_client::bloom_gen_lwe, bloom_server::bloom_encrypted
 use gpu::{
     cbs_vp::*, cpu_decrypt, cpu_decrypt_delta, cpu_encrypt, cpu_encrypt_custom, cpu_gen_bsk, cpu_gen_ksk, cpu_gen_multibsk, cpu_gen_pksk, cpu_gen_wopbs_keys, cpu_lwelist_to_veclwe, cpu_modswitch, cpu_params, cpu_seed, cpu_veclwe_to_lwelist, extract_bits::*, key_switch::*, pbs::*, pbsmany::{cpu_gen_pbsmany_lut, cpu_pbs_modulus_switch, cpu_pbsmany}, FHEParameters, PBS_PARAMS_no_padding
 };
-use tfhe::{core_crypto::{fft_impl::common::pbs_modulus_switch, gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, lwe_ciphertext_add_assign, lwe_ciphertext_plaintext_add_assign, ComputationBuffers, Fft, LweCiphertext}}, shortint::parameters::{v0_11::multi_bit::gaussian::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, v1_0::V1_0_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64}};
+use tfhe::{core_crypto::{fft_impl::common::pbs_modulus_switch, gpu::{vec::GpuIndex, CudaStreams}, prelude::{allocate_and_generate_new_lwe_keyswitch_key, lwe_ciphertext_add_assign, lwe_ciphertext_plaintext_add_assign, ComputationBuffers, Fft, LweCiphertext}}, shortint::parameters::{v0_11::multi_bit::gaussian::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64, v1_0::{classic::gaussian::p_fail_2_minus_128::pbs_ks, V1_0_PARAM_GPU_MULTI_BIT_GROUP_3_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M64}, v1_1::V1_1_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M40}};
 
 
 
@@ -14,6 +14,7 @@ fn example(){
     let gpu_index = 0;
     let streams = CudaStreams::new_single_gpu(GpuIndex::new(gpu_index));
     let pbs_params = PBS_PARAMS_no_padding;
+    // let pbs_params = V1_1_PARAM_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M40;
     
 
     let (mut boxed_seeder, mut encryption_generator, small_lwe_sk, glwe_sk, big_lwe_sk ) = cpu_seed(&&FHEParameters::PBS(pbs_params));
@@ -26,20 +27,21 @@ fn example(){
 
 
     // encrypted lookup 
-    // let f = |x: u64| x as u64;
-    // let mut vec_cts = Vec::new();
-    // for i in 0..16{
-    //     let mut ct = cpu_encrypt(&FHEParameters::MultiBit(pbs_params), &mut encryption_generator, &small_lwe_sk, i + 1 as u64, true);
-    //     vec_cts.push(ct);
-    // }
-    // let list_cts = cpu_veclwe_to_lwelist(&vec_cts);
-    // let start = std::time::Instant::now();
-    // let enc_lut = cpu_gen_encrypted_lut(&FHEParameters::MultiBit(pbs_params), &pksk, &list_cts);
-    // println!("lut gen took: {:?}", start.elapsed());
-    // let ct = cpu_encrypt(&FHEParameters::MultiBit(pbs_params), &mut encryption_generator, &small_lwe_sk, 3, true);
-    // let ct_out = cpu_pbs(&fourier_bsk, &ct, &enc_lut);
-    // let dec = cpu_decrypt(&FHEParameters::MultiBit(pbs_params), &big_lwe_sk, &ct_out, true);
-    // println!("encrypted lut dec: {}", dec);
+
+    let f = |x: u64| x as u64;
+    let mut vec_cts = Vec::new();
+    for i in 0..16{
+        let mut ct = cpu_encrypt(&&FHEParameters::PBS(pbs_params), &mut encryption_generator, &small_lwe_sk, i + 1 as u64, true);
+        vec_cts.push(ct);
+    }
+    let list_cts = cpu_veclwe_to_lwelist(&vec_cts);
+    let start = std::time::Instant::now();
+    let enc_lut = cpu_gen_encrypted_lut(&FHEParameters::PBS(pbs_params), &pksk, &list_cts);
+    println!("lut gen took: {:?}", start.elapsed());
+    let ct = cpu_encrypt(&FHEParameters::PBS(pbs_params), &mut encryption_generator, &small_lwe_sk, 3, true);
+    let ct_out = cpu_pbs(&fourier_bsk, &ct, &enc_lut);
+    let dec = cpu_decrypt(&FHEParameters::PBS(pbs_params), &big_lwe_sk, &ct_out, true);
+    println!("encrypted lut dec: {}", dec);
 
 
 
