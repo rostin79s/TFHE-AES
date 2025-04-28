@@ -98,7 +98,7 @@ pub fn bloom_encrypted_query
             let mut vec_temp_bits = Vec::new();
             for vec_bits_out_chunk in vec_bits_out.chunks(plaintext_modulus){
                 let list_bits_out_chunk = cpu_veclwe_to_lwelist(&vec_bits_out_chunk.to_vec());
-                let glwe_ct = cpu_gen_encrypted_lut(pbs_params, pksk, &list_bits_out_chunk);
+                let glwe_ct = cpu_gen_encrypted_lut(pbs_params, pksk, &list_bits_out_chunk, true);
                 let lwe = cpu_multipbs(fourier_multibsk, &lwe_pbs, &glwe_ct);
                 vec_temp_bits.push(lwe);
             }

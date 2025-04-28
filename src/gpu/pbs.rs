@@ -5,6 +5,7 @@ pub fn cpu_gen_encrypted_lut
     params: &FHEParameters,
     pksk: &LwePackingKeyswitchKey<Vec<u64>>,
     list_cts: &LweCiphertextList<Vec<u64>>,
+    padding: bool,
 ) -> GlweCiphertext<Vec<u64>>
 {
     let (glwe_size, poly_size) = match params {
@@ -24,7 +25,12 @@ pub fn cpu_gen_encrypted_lut
     };
 
     let cts_count = list_cts.lwe_ciphertext_count().0;
-    let box_size = poly_size.0 / cts_count;
+    
+    let mut box_size = poly_size.0 / cts_count;
+    if !padding {
+        box_size = poly_size.0 / cts_count * 2;
+    }
+
     let ciphertext_modulus = list_cts.ciphertext_modulus();
     let mut output_glwe = GlweCiphertext::new(
     0u64,

@@ -31,16 +31,16 @@ fn example(){
     let f = |x: u64| x as u64;
     let mut vec_cts = Vec::new();
     for i in 0..16{
-        let mut ct = cpu_encrypt(&&FHEParameters::PBS(pbs_params), &mut encryption_generator, &small_lwe_sk, i + 1 as u64, true);
+        let mut ct = cpu_encrypt(&&FHEParameters::PBS(pbs_params), &mut encryption_generator, &small_lwe_sk, i + 1 as u64, false);
         vec_cts.push(ct);
     }
     let list_cts = cpu_veclwe_to_lwelist(&vec_cts);
     let start = std::time::Instant::now();
-    let enc_lut = cpu_gen_encrypted_lut(&FHEParameters::PBS(pbs_params), &pksk, &list_cts);
+    let enc_lut = cpu_gen_encrypted_lut(&FHEParameters::PBS(pbs_params), &pksk, &list_cts, false);
     println!("lut gen took: {:?}", start.elapsed());
-    let ct = cpu_encrypt(&FHEParameters::PBS(pbs_params), &mut encryption_generator, &small_lwe_sk, 3, true);
+    let ct = cpu_encrypt(&FHEParameters::PBS(pbs_params), &mut encryption_generator, &small_lwe_sk, 7, false);
     let ct_out = cpu_pbs(&fourier_bsk, &ct, &enc_lut);
-    let dec = cpu_decrypt(&FHEParameters::PBS(pbs_params), &big_lwe_sk, &ct_out, true);
+    let dec = cpu_decrypt(&FHEParameters::PBS(pbs_params), &big_lwe_sk, &ct_out, false);
     println!("encrypted lut dec: {}", dec);
 
 
